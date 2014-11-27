@@ -27,6 +27,12 @@ Test-suite test
   Main-Is:           TestSuite.hs
   Build-Depends:     base >= 4 && < 5
 
+                     , HUnit
+                     , QuickCheck >= 2.7
+                     , test-framework
+                     , test-framework-hunit
+                     , test-framework-quickcheck2
+
 source-repository head
   type: git
   location: git://github.com:danstiner/transpiler.git
