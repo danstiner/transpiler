@@ -1,7 +1,7 @@
 module Main where
 
-import qualified BatchParserTests as BatchParserTests
-import           Test.Framework (defaultMain, testGroup)
+import qualified BatchParserTests
+import           Test.Framework   (defaultMain, testGroup)
 
 main :: IO ()
 main = defaultMain tests

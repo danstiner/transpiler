@@ -4,22 +4,25 @@ module BatchParser (
   , Statement (..)
 ) where
 
-import Data.Char
-import Control.Applicative
-import Control.Monad.Identity (Identity)
-import Data.List (intercalate)
-import qualified Text.Parsec as Parsec
-import Text.Parsec ( (<?>) )
-import Text.Parsec (ParseError, Parsec)
-import Text.Parsec.Char
+import           Control.Applicative
+import           Control.Monad          (void)
+import           Control.Monad.Identity (Identity)
+import           Data.Char
+import           Data.List              (intercalate)
+import           Text.Parsec            (ParseError, Parsec, (<?>))
+import qualified Text.Parsec            as Parsec
+import           Text.Parsec.Char
+import           Text.Parsec.Language
+import           Text.Parsec.Token
 
 type Script = [Statement]
 data Statement =
     EchoMessage String
   | EchoEnabled Bool
+  | Quieted Statement
   | Rem String
   | RmDir { rmDirRecurse :: Bool, rmDirQuiet :: Bool, rmDirPath :: FilePath }
-  | Quieted Statement deriving (Eq, Show)
+  deriving (Eq, Show)
 
 parse :: String -> Either ParseError Script
 parse = Parsec.parse script "(source)"
@@ -41,7 +44,7 @@ line = do
 statements :: Parsec String st [Statement]
 statements = do
   s <- statement
-  remaining <- (statements <|> return [])
+  remaining <- statements <|> return []
   return (s:remaining)
 
 statement :: Parsec String st Statement
@@ -50,48 +53,45 @@ statement = foldr (<|>) (Parsec.unexpected "no command matched") commands
 commands =
   [
     echo
-  , remStatement
-  , rd
-  , rmdir
   , quieted
+  , rd
+  , remStatement
+  , rmdir
   ]
 
 echo :: Parsec String st Statement
 echo = string "ECHO" >> (echodot <|> echonormal)
   where
     echodot = char '.' >> terminateStatement >> return (EchoMessage "")
-    echonormal = Parsec.skipMany1 printableWhitespace >> parseMsg >>= return . f
+    echonormal = fmap f (Parsec.skipMany1 printableWhitespace >> parseMsg)
     parseMsg = Parsec.manyTill Parsec.anyChar terminateStatement
     f :: String -> Statement
-    f msg = case (map toUpper msg) of
+    f msg = case map toUpper msg of
       "ON" -> EchoEnabled True
       "OFF" -> EchoEnabled False
       _ -> EchoMessage msg
 
 remStatement :: Parsec String st Statement
-remStatement =
-     string "REM"
+remStatement = fmap Rem
+  (string "REM"
   >> Parsec.skipMany1 printableWhitespace
-  >> (Parsec.manyTill Parsec.anyChar terminateStatement)
-  >>= return . Rem
+  >> stringExp)
 
 rd :: Parsec String st Statement
-rd = string "RD"
-  >> (Parsec.manyTill Parsec.anyChar terminateStatement)
-  >>= return . RmDir False False
+rd = fmap (RmDir False False) (string "RD" >> stringExp)
 
 rmdir :: Parsec String st Statement
-rmdir = string "RMDIR"
-  >> (Parsec.manyTill Parsec.anyChar terminateStatement)
-  >>= return . RmDir False False
+rmdir = fmap (RmDir False False) (string "RMDIR" >> stringExp)
 
 quieted :: Parsec String st Statement
-quieted = char '@' >> statement >>= return . Quieted
+quieted = fmap Quieted (char '@' >> statement)
+
+stringExp = Parsec.manyTill Parsec.anyChar terminateStatement
 
 printableWhitespace = satisfy (\c -> isSpace c && isPrint c)
 
 terminateLine :: Parsec String u ()
-terminateLine = (endOfLine >> return ()) <|> Parsec.eof
+terminateLine = void endOfLine <|> Parsec.eof
 
 terminateStatement :: Parsec String u ()
 terminateStatement = terminateLine
