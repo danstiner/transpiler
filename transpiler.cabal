@@ -14,12 +14,14 @@ build-type:          Simple
 cabal-version:       >=1.9.2
 tested-with:         GHC==7.6.3, GHC==7.8.2
 
-executable traspiler
+executable transpiler
   Hs-Source-Dirs:    src
   Main-Is:           Main.hs
   GHC-Options:       -Wall -threaded -O3
   GHC-Prof-Options:  -fprof-auto "-with-rtsopts=-N -p -s -i0.1"
   Build-Depends:     base >= 4 && < 5
+                     , parsec >= 3.1.7
+                     , mtl
 
 Test-suite test
   Type:              exitcode-stdio-1.0

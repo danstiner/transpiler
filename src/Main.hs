@@ -1,2 +1,4 @@
+import BatchParser as Batch
+
 main :: IO ()
-main = undefined
+main = getContents >>= print . Batch.parse
