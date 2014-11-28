@@ -15,12 +15,16 @@ import           Test.QuickCheck.Property             as Property
 
 tests :: [Test]
 tests = [
+          testProperty "<empty>" prop_parseEmpty
         , testProperty "ECHO ON" prop_parseEchoOn
         , testProperty "ECHO OFF" prop_parseEchoOff
         , testProperty "@ECHO OFF" prop_parseAtEchoOff
         , testProperty "ECHO [message]" prop_parseEchoMessage
         , testProperty "ECHO [message]\\nECHO [message]" prop_parseEchoMessageTwice
         ]
+
+prop_parseEmpty :: Property.Result
+prop_parseEmpty = assertParse "" []
 
 prop_parseEchoOn :: Property
 prop_parseEchoOn =
