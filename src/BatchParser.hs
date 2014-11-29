@@ -88,7 +88,7 @@ simpleCommand = Parsec.try builtins <|> externalCommand
 builtins :: Parsec String st Command
 builtins = commandParser [
     echo
-  , goto
+  , Parsec.try goto
   , gotoEof
   , ifCommand
   , label
@@ -171,7 +171,7 @@ goto :: Parsec String st Command
 goto = fmap Goto (string "GOTO" >> skipSomeWhitespace >> stringExp)
 
 gotoEof :: Parsec String st Command
-gotoEof = string "GOTO:eof" >> return GotoEof
+gotoEof = string "GOTO:EOF" >> return GotoEof
 
 rd :: Parsec String st Command
 rd = fmap (RmDir False False) (string "RD" >> stringExp)

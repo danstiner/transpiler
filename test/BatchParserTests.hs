@@ -37,6 +37,7 @@ commandTests =
   , testProperty "ECHO OFF" prop_command_EchoOff
   , testProperty "ECHO ON" prop_command_EchoOn
   , testProperty "GOTO [label]" prop_command_goto
+  , testProperty "GOTO:EOF" prop_command_gotoeof
   , testProperty "IF [EXPR] ECHO Hello" prop_command_If
   , testProperty "SET [VAR]=" prop_command_setempty
   , testProperty "VER" prop_command_ver
@@ -125,6 +126,9 @@ prop_command_If = assertParseCommand
 prop_command_goto :: Property.Result
 prop_command_goto = assertParseCommand "GOTO Label" (Goto "Label")
 
+prop_command_gotoeof :: Property.Result
+prop_command_gotoeof = assertParseCommand "GOTO:EOF" GotoEof
+
 prop_command_label :: Property.Result
 prop_command_label = assertParseCommand ":Label" (Label "Label")
 
@@ -200,6 +204,7 @@ messageString =
       && str /= ""
     startWithWhitespace str = not (null str) && isSpace (head str)
     endWithWhitespace str = not (null str) && isSpace (last str)
+
 permuteMap :: [a -> b] -> [a] -> [[b]]
 permuteMap _ [] = []
 permuteMap fs [x] = map (\f -> [f x]) fs
