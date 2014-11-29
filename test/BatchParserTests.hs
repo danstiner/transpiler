@@ -17,21 +17,25 @@ import           Test.QuickCheck.Property             as Property
 tests :: [Test]
 tests = [
           testProperty "<empty>" prop_parseEmpty
+        , testProperty ":[label]" prop_statement_label
         , testProperty "<whitespace>" prop_parseWhitespace
-        , testProperty "ECHO ON" prop_parseEchoOn
-        , testProperty "ECHO OFF" prop_parseEchoOff
         , testProperty "@ECHO OFF" prop_parseAtEchoOff
         , testProperty "ECHO [message]" prop_parseEchoMessage
         , testProperty "ECHO [message]\\nECHO [message]" prop_parseEchoMessageTwice
-        , testProperty "IF [EXPR] ECHO Hello" prop_parseIf
+        , testProperty "ECHO OFF" prop_parseEchoOff
+        , testProperty "ECHO ON" prop_parseEchoOn
+        , testProperty "ERRORLEVEL [N]" prop_exp_errorlevel
+        , testProperty "EXIST [FILEPATH]" prop_exp_exist
+        , testProperty "FALSE" prop_exp_false
         , testProperty "GOTO [label]" prop_statement_goto
-        , testProperty ":[label]" prop_statement_label
+        , testProperty "IF [EXPR] ECHO Hello" prop_parseIf
+        , testProperty "NOT TRUE" prop_exp_nottrue
+        , testProperty "SET [VAR]=" prop_statement_setempty
+        , testProperty "TRUE" prop_exp_true
         , testProperty "VER" prop_statement_ver
         , testProperty "VERIFY [bool]" prop_statement_verify
-        , testProperty "TRUE" prop_exp_true
-        , testProperty "FALSE" prop_exp_false
-        , testProperty "EXIST [FILEPATH]" prop_exp_exist
-        , testProperty "NOT TRUE" prop_exp_nottrue
+        , testProperty "\"[STRING]\"" prop_exp_string
+        , testProperty "\"[STRING]\"==\"[STRING]\"" prop_exp_stringEquality
         ]
 
 prop_parseEmpty :: Property.Result
@@ -88,6 +92,10 @@ prop_statement_verify :: Bool -> Property.Result
 prop_statement_verify b =
   assertParseStatement ("VERIFY " ++ map toUpper (show b)) (Verify b)
 
+prop_statement_setempty :: Property.Result
+prop_statement_setempty =
+  assertParseStatement "SET VAR=" (Set "VAR" (StringExpr ""))
+
 prop_exp_true :: Property.Result
 prop_exp_true = assertParseExpression "TRUE" TrueExpr
 
@@ -99,6 +107,20 @@ prop_exp_exist = assertParseExpression "EXIST /dev/null" (Exist "/dev/null")
 
 prop_exp_nottrue :: Property.Result
 prop_exp_nottrue = assertParseExpression "NOT TRUE" (NotExpr TrueExpr)
+
+prop_exp_errorlevel :: (Positive Integer) -> Property.Result
+prop_exp_errorlevel i =
+  assertParseExpression ("ERRORLEVEL " ++ show (getPositive i)) (ErrorLevelExpr $ getPositive i)
+
+prop_exp_string :: Property.Result
+prop_exp_string = assertParseExpression
+  "\"hello\""
+  (StringExpr "hello")
+
+prop_exp_stringEquality :: Property.Result
+prop_exp_stringEquality = assertParseExpression
+  "\"hello\"==\"world\""
+  (EqualsExpr (StringExpr "hello") (StringExpr "world"))
 
 assertParseScript :: String -> [Statement] -> Property.Result
 assertParseScript script expected =

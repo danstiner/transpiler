@@ -18,13 +18,17 @@ import           Text.Parsec.Char
 import           Text.Parsec.Language
 import           Text.Parsec.Token
 
+type VarName = String
 type LabelName = String
 type Script = [Statement]
 data Expression =
-    NotExpr Expression
-  | TrueExpr
-  | FalseExpr
+    ErrorLevelExpr Integer
   | Exist FilePath
+  | FalseExpr
+  | NotExpr Expression
+  | StringExpr String
+  | TrueExpr
+  | EqualsExpr Expression Expression
   deriving (Eq, Show)
 
 data Statement =
@@ -35,14 +39,15 @@ data Statement =
   | GotoEof
   | If Expression Statement Statement
   | Label LabelName
+  | Noop
   | Quieted Statement
   | Rem String
   | Rename FilePath FilePath
   | RmDir { rmDirRecurse :: Bool, rmDirQuiet :: Bool, rmDirPath :: FilePath }
+  | Set VarName Expression
   | Type [FilePath]
   | Ver
   | Verify Bool
-  | Noop
   deriving (Eq, Show)
 
 parse :: String -> Either ParseError Script
@@ -85,25 +90,46 @@ commands =
   , rd
   , remStatement
   , rmdir
+  , setStatement
   , ver
   ]
 
 expression :: Parsec String st Expression
-expression = trueExpr <|> falseExpr <|> existExpr <|> notExpr
+expression = trueExpr <|> falseExpr <|> notExpr <|> eExprs <|> (Parsec.try equalsExpr) <|> (Parsec.try stringExpr) where
+  eExprs = (Parsec.try existExpr) <|> errorLevelExpr
 
 trueExpr :: Parsec String st Expression
-trueExpr = string "TRUE" *> return TrueExpr
+trueExpr = string "TRUE" *> maybeWhitespace *> return TrueExpr
 
 falseExpr :: Parsec String st Expression
-falseExpr = string "FALSE" *> return FalseExpr
+falseExpr = string "FALSE" *> maybeWhitespace *> return FalseExpr
+
+notExpr :: Parsec String st Expression
+notExpr = fmap NotExpr (string "NOT" >> Parsec.skipMany1 printableWhitespace >> expression)
 
 existExpr :: Parsec String st Expression
 existExpr = fmap
   Exist
   (string "EXIST" >> Parsec.skipMany1 printableWhitespace >> Parsec.manyTill Parsec.anyChar terminateExpr)
 
-notExpr :: Parsec String st Expression
-notExpr = fmap NotExpr (string "NOT" >> Parsec.skipMany1 printableWhitespace >> expression)
+errorLevelExpr :: Parsec String st Expression
+errorLevelExpr = fmap ErrorLevelExpr (string "ERRORLEVEL" >> Parsec.skipMany1 printableWhitespace >> natural tokenParser)
+
+stringExpr :: Parsec String st Expression
+stringExpr = do
+  quote
+  str <- Parsec.manyTill Parsec.anyChar quote
+  maybeWhitespace
+  return (StringExpr str)
+  where
+    quote = char '"'
+
+equalsExpr :: Parsec String st Expression
+equalsExpr = do
+  left <- stringExpr
+  string "=="
+  right <- stringExpr
+  return (EqualsExpr left right)
 
 echo :: Parsec String st Statement
 echo = string "ECHO" >> (echodot <|> echonormal)
@@ -153,13 +179,22 @@ verifyStatement = string "IFY" >> Parsec.skipMany1 printableWhitespace >> (t <|>
   f = falseExpr >> return (Verify False)
 
 ifStatement :: Parsec String st Statement
-ifStatement = do
-  string "IF"
-  Parsec.skipMany1 printableWhitespace
-  exp <- expression
-  Parsec.skipMany1 printableWhitespace
-  consequent <- statement
-  return (If exp consequent Noop)
+ifStatement = ifKeyword *> liftA3 If expression statement (return Noop) where
+  ifKeyword = string "IF" *> Parsec.skipMany1 printableWhitespace
+
+setStatement :: Parsec String st Statement
+setStatement = do
+  string "SET"
+  whitespaceSeperation
+  var <- variableName
+  value <- stringExp
+  return (Set var (StringExpr value))
+  where
+    variableName = Parsec.manyTill Parsec.anyChar (char '=')
+
+maybeWhitespace = Parsec.skipMany printableWhitespace
+
+whitespaceSeperation = Parsec.skipMany1 printableWhitespace
 
 stringExp = Parsec.manyTill Parsec.anyChar terminateStatement
 
