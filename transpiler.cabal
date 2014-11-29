@@ -1,5 +1,5 @@
 name:                transpiler
-version:             0.0.0.1
+version:             0.0.1.0
 synopsis:            cmd.exe batch script to C# transpiler
 description:         Command line utility for transforming cmd.exe batch scripts into equivalent C# code
 license:             MIT
