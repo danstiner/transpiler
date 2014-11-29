@@ -15,67 +15,98 @@ import           Test.QuickCheck
 import           Test.QuickCheck.Property             as Property
 
 tests :: [Test]
-tests = [
-          testProperty "<empty>" prop_parseEmpty
-        , testProperty ":[label]" prop_statement_label
-        , testProperty "<whitespace>" prop_parseWhitespace
-        , testProperty "@ECHO OFF" prop_parseAtEchoOff
-        , testProperty "ECHO [message]" prop_parseEchoMessage
-        , testProperty "ECHO [message]\\nECHO [message]" prop_parseEchoMessageTwice
-        , testProperty "ECHO OFF" prop_parseEchoOff
-        , testProperty "ECHO ON" prop_parseEchoOn
-        , testProperty "ERRORLEVEL [N]" prop_exp_errorlevel
-        , testProperty "EXIST [FILEPATH]" prop_exp_exist
-        , testProperty "FALSE" prop_exp_false
-        , testProperty "GOTO [label]" prop_statement_goto
-        , testProperty "IF [EXPR] ECHO Hello" prop_parseIf
-        , testProperty "NOT TRUE" prop_exp_nottrue
-        , testProperty "SET [VAR]=" prop_statement_setempty
-        , testProperty "TRUE" prop_exp_true
-        , testProperty "VER" prop_statement_ver
-        , testProperty "VERIFY [bool]" prop_statement_verify
-        , testProperty "\"[STRING]\"" prop_exp_string
-        , testProperty "\"[STRING]\"==\"[STRING]\"" prop_exp_stringEquality
-        ]
+tests = scriptTests ++ statementTests ++ expressionTests
 
-prop_parseEmpty :: Property.Result
-prop_parseEmpty = assertParseScript "" []
+scriptTests, statementTests, expressionTests :: [Test]
 
-prop_parseWhitespace :: Property
-prop_parseWhitespace =
+scriptTests =
+  [
+    testProperty "<empty>" prop_script_Empty
+  , testProperty "<whitespace>" prop_script_Whitespace
+  , testProperty "ECHO [message] > NUL" prop_script_echotonul
+  , testProperty "nested IF with following line" prop_script_nestedif_doesnotconsumefollowingline
+  ]
+
+statementTests =
+  [
+    testProperty ":[label]" prop_statement_label
+  , testProperty "@ECHO OFF" prop_statement_AtEchoOff
+  , testProperty "ECHO [message]" prop_statement_EchoMessage
+  , testProperty "ECHO [message]\\nECHO [message]" prop_statement_EchoMessageTwice
+  , testProperty "ECHO OFF" prop_statement_EchoOff
+  , testProperty "ECHO ON" prop_statement_EchoOn
+  , testProperty "GOTO [label]" prop_statement_goto
+  , testProperty "IF [EXPR] ECHO Hello" prop_statement_If
+  , testProperty "SET [VAR]=" prop_statement_setempty
+  , testProperty "VER" prop_statement_ver
+  , testProperty "VERIFY [bool]" prop_statement_verify
+  ]
+
+expressionTests =
+  [
+    testProperty "\"[STRING]\"" prop_exp_string
+  , testProperty "\"[STRING]\"==\"[STRING]\"" prop_exp_stringEquality
+  , testProperty "ERRORLEVEL [N]" prop_exp_errorlevel
+  , testProperty "EXIST [FILEPATH]" prop_exp_exist
+  , testProperty "FALSE" prop_exp_false
+  , testProperty "NOT TRUE" prop_exp_nottrue
+  , testProperty "TRUE" prop_exp_true
+  ]
+
+prop_script_Empty :: Property.Result
+prop_script_Empty = assertParseScript "" []
+
+prop_script_Whitespace :: Property
+prop_script_Whitespace =
   forAll genWhitespace $ \whitespace ->
   assertParseScript whitespace []
   where
     genWhitespace = suchThat arbitrary (all isSpace)
 
-prop_parseEchoOn :: Property
-prop_parseEchoOn =
+prop_script_nestedif_doesnotconsumefollowingline :: Property.Result
+prop_script_nestedif_doesnotconsumefollowingline =
+  assertParseScript
+    ("IF TRUE IF TRUE GOTO start" ++ "\n" ++ "ECHO.")
+    [
+      If TrueExpr (If TrueExpr (Goto "start") Noop) Noop
+    , EchoMessage ""
+    ]
+
+prop_script_echotonul :: Property
+prop_script_echotonul =
+  forAll messageString $ \msg ->
+  assertParseScript
+    ("ECHO " ++ msg ++ ">NUL")
+    [Pipe (EchoMessage msg) "NUL"]
+
+prop_statement_EchoOn :: Property
+prop_statement_EchoOn =
   forAll (casing "ON") $ \arg ->
   assertParseStatement ("ECHO " ++ arg) (EchoEnabled True)
 
-prop_parseEchoOff :: Property
-prop_parseEchoOff =
+prop_statement_EchoOff :: Property
+prop_statement_EchoOff =
   forAll (casing "OFF") $ \arg ->
   assertParseStatement ("ECHO " ++ arg) (EchoEnabled False)
 
-prop_parseAtEchoOff :: Property
-prop_parseAtEchoOff =
+prop_statement_AtEchoOff :: Property
+prop_statement_AtEchoOff =
   forAll (casing "OFF") $ \arg ->
   assertParseStatement ("@ECHO " ++ arg) (Quieted (EchoEnabled False))
 
-prop_parseEchoMessage :: Property
-prop_parseEchoMessage =
+prop_statement_EchoMessage :: Property
+prop_statement_EchoMessage =
   forAll messageString $ \msg ->
   assertParseStatement ("ECHO " ++ msg) (EchoMessage msg)
 
-prop_parseEchoMessageTwice :: Property
-prop_parseEchoMessageTwice =
+prop_statement_EchoMessageTwice :: Property
+prop_statement_EchoMessageTwice =
   forAll messageString $ \msg1 ->
   forAll messageString $ \msg2 ->
   assertParseScript ("ECHO " ++ msg1 ++ "\nECHO " ++ msg2) [EchoMessage msg1,EchoMessage msg2]
 
-prop_parseIf :: Property.Result
-prop_parseIf = assertParseStatement
+prop_statement_If :: Property.Result
+prop_statement_If = assertParseStatement
   "IF TRUE ECHO hello"
   (If TrueExpr (EchoMessage "hello") Noop)
 
@@ -149,9 +180,14 @@ messageString :: Gen String
 messageString =
   suchThat arbitrary cond
   where
-    cond str = all (not . isControl) str && not (startWithWhitespace str)
+    cond str =
+         all (not . isControl) str
+      && not (startWithWhitespace str)
+      && not (endWithWhitespace str)
+      && all (\c -> c /= '|' && c /= '>') str
+      && str /= ""
     startWithWhitespace str = not (null str) && isSpace (head str)
-
+    endWithWhitespace str = not (null str) && isSpace (last str)
 permuteMap :: [a -> b] -> [a] -> [[b]]
 permuteMap _ [] = []
 permuteMap fs [x] = map (\f -> [f x]) fs

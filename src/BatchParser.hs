@@ -23,12 +23,12 @@ type LabelName = String
 type Script = [Statement]
 data Expression =
     ErrorLevelExpr Integer
+  | EqualsExpr Expression Expression
   | Exist FilePath
   | FalseExpr
   | NotExpr Expression
   | StringExpr String
   | TrueExpr
-  | EqualsExpr Expression Expression
   deriving (Eq, Show)
 
 data Statement =
@@ -40,6 +40,7 @@ data Statement =
   | If Expression Statement Statement
   | Label LabelName
   | Noop
+  | Pipe Statement FilePath
   | Quieted Statement
   | Rem String
   | Rename FilePath FilePath
@@ -69,18 +70,17 @@ statements = ws *> (empty <|> content) where
     return (s:remaining)
 
 statement :: Parsec String st Statement
-statement = foldr
-  ((<|>) . followedByWhiteSpace)
-  (Parsec.unexpected "no command matched")
-  commands
-  where
-    followedByWhiteSpace p = do
-      r <- p
-      whiteSpace tokenParser
-      return r
+statement =
+      Parsec.try statements_0
+  <|> Parsec.try statements_1
 
-commands =
-  [
+statements_0 :: Parsec String st Statement
+statements_0 = statementParser [
+    redirectStatement
+  ]
+
+statements_1 :: Parsec String st Statement
+statements_1 = statementParser [
     echo
   , goto
   , gotoEof
@@ -93,6 +93,17 @@ commands =
   , setStatement
   , ver
   ]
+
+statementParser :: [Parsec String st Statement] -> Parsec String st Statement
+statementParser cs = foldr
+  ((<|>) . followedByWhiteSpace)
+  (Parsec.unexpected "no command matched")
+  cs
+  where
+    followedByWhiteSpace p = do
+      r <- p
+      whiteSpace tokenParser
+      return r
 
 expression :: Parsec String st Expression
 expression = trueExpr <|> falseExpr <|> notExpr <|> eExprs <|> (Parsec.try equalsExpr) <|> (Parsec.try stringExpr) where
@@ -110,7 +121,7 @@ notExpr = fmap NotExpr (string "NOT" >> Parsec.skipMany1 printableWhitespace >> 
 existExpr :: Parsec String st Expression
 existExpr = fmap
   Exist
-  (string "EXIST" >> Parsec.skipMany1 printableWhitespace >> Parsec.manyTill Parsec.anyChar terminateExpr)
+  (string "EXIST" >> Parsec.skipMany1 printableWhitespace >> filePath)
 
 errorLevelExpr :: Parsec String st Expression
 errorLevelExpr = fmap ErrorLevelExpr (string "ERRORLEVEL" >> Parsec.skipMany1 printableWhitespace >> natural tokenParser)
@@ -134,7 +145,7 @@ equalsExpr = do
 echo :: Parsec String st Statement
 echo = string "ECHO" >> (echodot <|> echonormal)
   where
-    echodot = char '.' >> terminateStatement >> return (EchoMessage "")
+    echodot = char '.' >> return (EchoMessage "")
     echonormal = fmap f (Parsec.skipMany1 printableWhitespace >> parseMsg)
     parseMsg = Parsec.manyTill Parsec.anyChar terminateStatement
     f :: String -> Statement
@@ -192,6 +203,15 @@ setStatement = do
   where
     variableName = Parsec.manyTill Parsec.anyChar (char '=')
 
+redirectStatement :: Parsec String st Statement
+redirectStatement = do
+  s <- statements_1
+  caret
+  e <- filePath
+  return (Pipe s e)
+  where
+    caret = char '>' *> Parsec.skipMany printableWhitespace
+
 maybeWhitespace = Parsec.skipMany printableWhitespace
 
 whitespaceSeperation = Parsec.skipMany1 printableWhitespace
@@ -200,11 +220,15 @@ stringExp = Parsec.manyTill Parsec.anyChar terminateStatement
 
 printableWhitespace = satisfy (\c -> isSpace c && isPrint c)
 
+filePath = Parsec.manyTill Parsec.anyChar terminateExpr
+
 terminateLine :: Parsec String u ()
 terminateLine = void endOfLine <|> Parsec.eof
 
 terminateStatement :: Parsec String u ()
-terminateStatement = terminateLine
+terminateStatement = Parsec.lookAhead $
+      terminateLine
+  <|> void (char '>')
 
 terminateExpr :: Parsec String u ()
 terminateExpr = void Parsec.space <|> Parsec.eof
