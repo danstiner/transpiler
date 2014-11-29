@@ -1,9 +1,9 @@
 module BatchParser (
     parse
-  , statement
+  , command
   , expression
   , Script
-  , Statement (..)
+  , Command (..)
   , Expression (..)
 ) where
 
@@ -12,15 +12,17 @@ import           Control.Monad          (void)
 import           Control.Monad.Identity (Identity)
 import           Data.Char
 import           Data.List              (intercalate)
+import           Data.String.Utils
 import           Text.Parsec            (ParseError, Parsec)
 import qualified Text.Parsec            as Parsec
 import           Text.Parsec.Char
 import           Text.Parsec.Language
 import           Text.Parsec.Token
 
+type RedirectionSpecification = FilePath
 type VarName = String
 type LabelName = String
-type Script = [Statement]
+type Script = [Command]
 data Expression =
     ErrorLevelExpr Integer
   | EqualsExpr Expression Expression
@@ -31,17 +33,18 @@ data Expression =
   | TrueExpr
   deriving (Eq, Show)
 
-data Statement =
+data Command =
     EchoMessage String
   | EchoEnabled Bool
   | Find String [FilePath]
   | Goto LabelName
   | GotoEof
-  | If Expression Statement Statement
+  | If Expression Command Command
   | Label LabelName
   | Noop
-  | Pipe Statement FilePath
-  | Quieted Statement
+  | Pipe Command Command
+  | Redirection Command RedirectionSpecification
+  | Quieted Command
   | Rem String
   | Rename FilePath FilePath
   | RmDir { rmDirRecurse :: Bool, rmDirQuiet :: Bool, rmDirPath :: FilePath }
@@ -49,56 +52,57 @@ data Statement =
   | Type [FilePath]
   | Ver
   | Verify Bool
+  | ExternalCommand String String
   deriving (Eq, Show)
 
 parse :: String -> Either ParseError Script
 parse = Parsec.parse script "(source)"
 
-script :: Parsec String u [Statement]
+script :: Parsec String u [Command]
 script = do
-  s <- statements
+  s <- commands
   Parsec.eof
   return s
 
-statements :: Parsec String st [Statement]
-statements = ws *> (empty <|> content) where
+commands :: Parsec String st [Command]
+commands = ws *> (empty <|> content) where
   ws = whiteSpace tokenParser
   empty = Parsec.eof *> return []
   content = do
-    s <- statement
-    remaining <- statements <|> return []
+    s <- command
+    remaining <- commands <|> return []
     return (s:remaining)
 
-statement :: Parsec String st Statement
-statement =
-      Parsec.try statements_0
-  <|> Parsec.try statements_1
+command :: Parsec String st Command
+command = complexCommand <|> simpleCommand
 
-statements_0 :: Parsec String st Statement
-statements_0 = statementParser [
-    redirectStatement
+complexCommand :: Parsec String st Command
+complexCommand = commandParser [
+    Parsec.try redirectCommand
+  , Parsec.try pipeCommand
   ]
 
-statements_1 :: Parsec String st Statement
-statements_1 = statementParser [
+simpleCommand :: Parsec String st Command
+simpleCommand = Parsec.try builtins <|> externalCommand
+
+builtins :: Parsec String st Command
+builtins = commandParser [
     echo
   , goto
   , gotoEof
-  , ifStatement
+  , ifCommand
   , label
   , quieted
   , rd
-  , remStatement
+  , remCommand
   , rmdir
-  , setStatement
+  , setCommand
   , ver
   ]
 
-statementParser :: [Parsec String st Statement] -> Parsec String st Statement
-statementParser cs = foldr
-  ((<|>) . followedByWhiteSpace)
-  (Parsec.unexpected "no command matched")
-  cs
+commandParser :: [Parsec String st Command] -> Parsec String st Command
+commandParser =
+  foldr ((<|>) . followedByWhiteSpace) (Parsec.unexpected "no command matched")
   where
     followedByWhiteSpace p = do
       r <- p
@@ -106,31 +110,31 @@ statementParser cs = foldr
       return r
 
 expression :: Parsec String st Expression
-expression = trueExpr <|> falseExpr <|> notExpr <|> eExprs <|> (Parsec.try equalsExpr) <|> (Parsec.try stringExpr) where
-  eExprs = (Parsec.try existExpr) <|> errorLevelExpr
+expression = trueExpr <|> falseExpr <|> notExpr <|> eExprs <|> Parsec.try equalsExpr <|> Parsec.try stringExpr where
+  eExprs = Parsec.try existExpr <|> errorLevelExpr
 
 trueExpr :: Parsec String st Expression
-trueExpr = string "TRUE" *> maybeWhitespace *> return TrueExpr
+trueExpr = string "TRUE" *> skipAnyWhitespace *> return TrueExpr
 
 falseExpr :: Parsec String st Expression
-falseExpr = string "FALSE" *> maybeWhitespace *> return FalseExpr
+falseExpr = string "FALSE" *> skipAnyWhitespace *> return FalseExpr
 
 notExpr :: Parsec String st Expression
-notExpr = fmap NotExpr (string "NOT" >> Parsec.skipMany1 printableWhitespace >> expression)
+notExpr = fmap NotExpr (string "NOT" >> skipSomeWhitespace >> expression)
 
 existExpr :: Parsec String st Expression
 existExpr = fmap
   Exist
-  (string "EXIST" >> Parsec.skipMany1 printableWhitespace >> filePath)
+  (string "EXIST" >> skipSomeWhitespace >> filePath)
 
 errorLevelExpr :: Parsec String st Expression
-errorLevelExpr = fmap ErrorLevelExpr (string "ERRORLEVEL" >> Parsec.skipMany1 printableWhitespace >> natural tokenParser)
+errorLevelExpr = fmap ErrorLevelExpr (string "ERRORLEVEL" >> skipSomeWhitespace >> natural tokenParser)
 
 stringExpr :: Parsec String st Expression
 stringExpr = do
   quote
   str <- Parsec.manyTill Parsec.anyChar quote
-  maybeWhitespace
+  skipAnyWhitespace
   return (StringExpr str)
   where
     quote = char '"'
@@ -142,81 +146,99 @@ equalsExpr = do
   right <- stringExpr
   return (EqualsExpr left right)
 
-echo :: Parsec String st Statement
+echo :: Parsec String st Command
 echo = string "ECHO" >> (echodot <|> echonormal)
   where
     echodot = char '.' >> return (EchoMessage "")
-    echonormal = fmap f (Parsec.skipMany1 printableWhitespace >> parseMsg)
-    parseMsg = Parsec.manyTill Parsec.anyChar terminateStatement
-    f :: String -> Statement
+    echonormal = fmap f (skipSomeWhitespace >> parseMsg)
+    parseMsg = Parsec.manyTill Parsec.anyChar terminateCommand
+    f :: String -> Command
     f msg = case map toUpper msg of
       "ON" -> EchoEnabled True
       "OFF" -> EchoEnabled False
-      _ -> EchoMessage msg
+      _ -> EchoMessage (strip msg)
 
-remStatement :: Parsec String st Statement
-remStatement = fmap Rem
+remCommand :: Parsec String st Command
+remCommand = fmap Rem
   (string "REM"
-  >> Parsec.skipMany1 printableWhitespace
+  >> skipSomeWhitespace
   >> stringExp)
 
-label :: Parsec String st Statement
+label :: Parsec String st Command
 label = fmap Label (char ':' >> stringExp)
 
-goto :: Parsec String st Statement
-goto = fmap Goto (string "GOTO" >> Parsec.skipMany1 printableWhitespace >> stringExp)
+goto :: Parsec String st Command
+goto = fmap Goto (string "GOTO" >> skipSomeWhitespace >> stringExp)
 
-gotoEof :: Parsec String st Statement
+gotoEof :: Parsec String st Command
 gotoEof = string "GOTO:eof" >> return GotoEof
 
-rd :: Parsec String st Statement
+rd :: Parsec String st Command
 rd = fmap (RmDir False False) (string "RD" >> stringExp)
 
-rmdir :: Parsec String st Statement
+rmdir :: Parsec String st Command
 rmdir = fmap (RmDir False False) (string "RMDIR" >> stringExp)
 
-quieted :: Parsec String st Statement
-quieted = fmap Quieted (char '@' >> statement)
+quieted :: Parsec String st Command
+quieted = fmap Quieted (char '@' >> command)
 
-ver :: Parsec String st Statement
-ver = string "VER" >> (verStatement <|> verifyStatement)
+ver :: Parsec String st Command
+ver = string "VER" >> (verCommand <|> verifyCommand)
 
-verStatement :: Parsec String st Statement
-verStatement = terminateStatement >> return Ver
+verCommand :: Parsec String st Command
+verCommand = terminateCommand >> return Ver
 
-verifyStatement :: Parsec String st Statement
-verifyStatement = string "IFY" >> Parsec.skipMany1 printableWhitespace >> (t <|> f) where
+verifyCommand :: Parsec String st Command
+verifyCommand = string "IFY" >> skipSomeWhitespace >> (t <|> f) where
   t = trueExpr >> return (Verify True)
   f = falseExpr >> return (Verify False)
 
-ifStatement :: Parsec String st Statement
-ifStatement = ifKeyword *> liftA3 If expression statement (return Noop) where
-  ifKeyword = string "IF" *> Parsec.skipMany1 printableWhitespace
+ifCommand :: Parsec String st Command
+ifCommand = ifKeyword *> liftA3 If expression command (return Noop) where
+  ifKeyword = string "IF" *> skipSomeWhitespace
 
-setStatement :: Parsec String st Statement
-setStatement = do
+setCommand :: Parsec String st Command
+setCommand = do
   string "SET"
-  whitespaceSeperation
+  skipSomeWhitespace
   var <- variableName
   value <- stringExp
   return (Set var (StringExpr value))
   where
     variableName = Parsec.manyTill Parsec.anyChar (char '=')
 
-redirectStatement :: Parsec String st Statement
-redirectStatement = do
-  s <- statements_1
+externalCommand :: Parsec String st Command
+externalCommand = liftA2 ExternalCommand commandName arguments where
+  commandName = do
+    name <- Parsec.manyTill Parsec.anyChar terminateExpr
+    skipAnyWhitespace
+    return name
+  arguments = Parsec.manyTill Parsec.anyChar terminateCommand
+
+redirectCommand :: Parsec String st Command
+redirectCommand = do
+  source <- simpleCommand
   caret
-  e <- filePath
-  return (Pipe s e)
+  sink <- redirectionSpecification
+  return (Redirection source sink)
   where
-    caret = char '>' *> Parsec.skipMany printableWhitespace
+    caret = char '>' *> skipAnyWhitespace
+    redirectionSpecification = filePath
 
-maybeWhitespace = Parsec.skipMany printableWhitespace
+pipeCommand :: Parsec String st Command
+pipeCommand = do
+  source <- simpleCommand
+  pipe
+  sink <- simpleCommand
+  return (Pipe source sink)
+  where
+    pipe = char '|' *> skipAnyWhitespace
 
-whitespaceSeperation = Parsec.skipMany1 printableWhitespace
+skipAnyWhitespace = Parsec.skipMany printableWhitespace
 
-stringExp = Parsec.manyTill Parsec.anyChar terminateStatement
+skipSomeWhitespace = Parsec.skipMany1 printableWhitespace
+
+stringExp = Parsec.manyTill Parsec.anyChar terminateCommand
 
 printableWhitespace = satisfy (\c -> isSpace c && isPrint c)
 
@@ -225,10 +247,12 @@ filePath = Parsec.manyTill Parsec.anyChar terminateExpr
 terminateLine :: Parsec String u ()
 terminateLine = void endOfLine <|> Parsec.eof
 
-terminateStatement :: Parsec String u ()
-terminateStatement = Parsec.lookAhead $
+terminateCommand :: Parsec String u ()
+terminateCommand = Parsec.lookAhead $
       terminateLine
   <|> void (char '>')
+  <|> void (char '|')
+  <|> void (string ">>")
 
 terminateExpr :: Parsec String u ()
 terminateExpr = void Parsec.space <|> Parsec.eof

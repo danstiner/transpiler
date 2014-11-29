@@ -6,8 +6,8 @@ import           BatchParser
 
 import           Data.Char
 import           Data.List
-import           Text.Parsec            (ParseError, Parsec)
-import qualified Text.Parsec            as Parsec
+import           Text.Parsec                          (ParseError, Parsec)
+import qualified Text.Parsec                          as Parsec
 
 import           Test.Framework
 import           Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -15,9 +15,9 @@ import           Test.QuickCheck
 import           Test.QuickCheck.Property             as Property
 
 tests :: [Test]
-tests = scriptTests ++ statementTests ++ expressionTests
+tests = scriptTests ++ commandTests ++ expressionTests
 
-scriptTests, statementTests, expressionTests :: [Test]
+scriptTests, commandTests, expressionTests :: [Test]
 
 scriptTests =
   [
@@ -25,21 +25,23 @@ scriptTests =
   , testProperty "<whitespace>" prop_script_Whitespace
   , testProperty "ECHO [message] > NUL" prop_script_echotonul
   , testProperty "nested IF with following line" prop_script_nestedif_doesnotconsumefollowingline
+  , testProperty "ECHO [message] | [EXE]" prop_script_echopiped
   ]
 
-statementTests =
+commandTests =
   [
-    testProperty ":[label]" prop_statement_label
-  , testProperty "@ECHO OFF" prop_statement_AtEchoOff
-  , testProperty "ECHO [message]" prop_statement_EchoMessage
-  , testProperty "ECHO [message]\\nECHO [message]" prop_statement_EchoMessageTwice
-  , testProperty "ECHO OFF" prop_statement_EchoOff
-  , testProperty "ECHO ON" prop_statement_EchoOn
-  , testProperty "GOTO [label]" prop_statement_goto
-  , testProperty "IF [EXPR] ECHO Hello" prop_statement_If
-  , testProperty "SET [VAR]=" prop_statement_setempty
-  , testProperty "VER" prop_statement_ver
-  , testProperty "VERIFY [bool]" prop_statement_verify
+    testProperty ":[label]" prop_command_label
+  , testProperty "@ECHO OFF" prop_command_AtEchoOff
+  , testProperty "ECHO [message]" prop_command_EchoMessage
+  , testProperty "ECHO [message]\\nECHO [message]" prop_command_EchoMessageTwice
+  , testProperty "ECHO OFF" prop_command_EchoOff
+  , testProperty "ECHO ON" prop_command_EchoOn
+  , testProperty "GOTO [label]" prop_command_goto
+  , testProperty "IF [EXPR] ECHO Hello" prop_command_If
+  , testProperty "SET [VAR]=" prop_command_setempty
+  , testProperty "VER" prop_command_ver
+  , testProperty "VERIFY [bool]" prop_command_verify
+  , testProperty "[EXTERNAL.EXE] [ARGS]" prop_command_externalexe
   ]
 
 expressionTests =
@@ -76,56 +78,66 @@ prop_script_echotonul :: Property
 prop_script_echotonul =
   forAll messageString $ \msg ->
   assertParseScript
-    ("ECHO " ++ msg ++ ">NUL")
-    [Pipe (EchoMessage msg) "NUL"]
+    ("ECHO " ++ msg ++ " > NUL")
+    [Redirection (EchoMessage msg) "NUL"]
 
-prop_statement_EchoOn :: Property
-prop_statement_EchoOn =
+prop_script_echopiped :: Property.Result
+prop_script_echopiped =
+  assertParseScript
+    "ECHO %COMSPEC% | CHOICE /C:AB"
+    [Pipe (EchoMessage "%COMSPEC%") (ExternalCommand "CHOICE" "/C:AB")]
+
+prop_command_externalexe :: Property.Result
+prop_command_externalexe =
+  assertParseCommand "CHOICE /C:AB" (ExternalCommand "CHOICE" "/C:AB")
+
+prop_command_EchoOn :: Property
+prop_command_EchoOn =
   forAll (casing "ON") $ \arg ->
-  assertParseStatement ("ECHO " ++ arg) (EchoEnabled True)
+  assertParseCommand ("ECHO " ++ arg) (EchoEnabled True)
 
-prop_statement_EchoOff :: Property
-prop_statement_EchoOff =
+prop_command_EchoOff :: Property
+prop_command_EchoOff =
   forAll (casing "OFF") $ \arg ->
-  assertParseStatement ("ECHO " ++ arg) (EchoEnabled False)
+  assertParseCommand ("ECHO " ++ arg) (EchoEnabled False)
 
-prop_statement_AtEchoOff :: Property
-prop_statement_AtEchoOff =
+prop_command_AtEchoOff :: Property
+prop_command_AtEchoOff =
   forAll (casing "OFF") $ \arg ->
-  assertParseStatement ("@ECHO " ++ arg) (Quieted (EchoEnabled False))
+  assertParseCommand ("@ECHO " ++ arg) (Quieted (EchoEnabled False))
 
-prop_statement_EchoMessage :: Property
-prop_statement_EchoMessage =
+prop_command_EchoMessage :: Property
+prop_command_EchoMessage =
   forAll messageString $ \msg ->
-  assertParseStatement ("ECHO " ++ msg) (EchoMessage msg)
+  assertParseCommand ("ECHO " ++ msg) (EchoMessage msg)
 
-prop_statement_EchoMessageTwice :: Property
-prop_statement_EchoMessageTwice =
+prop_command_EchoMessageTwice :: Property
+prop_command_EchoMessageTwice =
   forAll messageString $ \msg1 ->
   forAll messageString $ \msg2 ->
   assertParseScript ("ECHO " ++ msg1 ++ "\nECHO " ++ msg2) [EchoMessage msg1,EchoMessage msg2]
 
-prop_statement_If :: Property.Result
-prop_statement_If = assertParseStatement
+prop_command_If :: Property.Result
+prop_command_If = assertParseCommand
   "IF TRUE ECHO hello"
   (If TrueExpr (EchoMessage "hello") Noop)
 
-prop_statement_goto :: Property.Result
-prop_statement_goto = assertParseStatement "GOTO Label" (Goto "Label")
+prop_command_goto :: Property.Result
+prop_command_goto = assertParseCommand "GOTO Label" (Goto "Label")
 
-prop_statement_label :: Property.Result
-prop_statement_label = assertParseStatement ":Label" (Label "Label")
+prop_command_label :: Property.Result
+prop_command_label = assertParseCommand ":Label" (Label "Label")
 
-prop_statement_ver :: Property.Result
-prop_statement_ver = assertParseStatement "VER" Ver
+prop_command_ver :: Property.Result
+prop_command_ver = assertParseCommand "VER" Ver
 
-prop_statement_verify :: Bool -> Property.Result
-prop_statement_verify b =
-  assertParseStatement ("VERIFY " ++ map toUpper (show b)) (Verify b)
+prop_command_verify :: Bool -> Property.Result
+prop_command_verify b =
+  assertParseCommand ("VERIFY " ++ map toUpper (show b)) (Verify b)
 
-prop_statement_setempty :: Property.Result
-prop_statement_setempty =
-  assertParseStatement "SET VAR=" (Set "VAR" (StringExpr ""))
+prop_command_setempty :: Property.Result
+prop_command_setempty =
+  assertParseCommand "SET VAR=" (Set "VAR" (StringExpr ""))
 
 prop_exp_true :: Property.Result
 prop_exp_true = assertParseExpression "TRUE" TrueExpr
@@ -139,7 +151,7 @@ prop_exp_exist = assertParseExpression "EXIST /dev/null" (Exist "/dev/null")
 prop_exp_nottrue :: Property.Result
 prop_exp_nottrue = assertParseExpression "NOT TRUE" (NotExpr TrueExpr)
 
-prop_exp_errorlevel :: (Positive Integer) -> Property.Result
+prop_exp_errorlevel :: Positive Integer -> Property.Result
 prop_exp_errorlevel i =
   assertParseExpression ("ERRORLEVEL " ++ show (getPositive i)) (ErrorLevelExpr $ getPositive i)
 
@@ -153,14 +165,14 @@ prop_exp_stringEquality = assertParseExpression
   "\"hello\"==\"world\""
   (EqualsExpr (StringExpr "hello") (StringExpr "world"))
 
-assertParseScript :: String -> [Statement] -> Property.Result
+assertParseScript :: String -> [Command] -> Property.Result
 assertParseScript script expected =
   case BatchParser.parse script of
     Left error -> mkResult False (show error)
     Right parsed -> mkResult (parsed == expected) (show parsed ++ "/=" ++ show expected)
 
-assertParseStatement :: String -> Statement -> Property.Result
-assertParseStatement = assertParse BatchParser.statement
+assertParseCommand :: String -> Command -> Property.Result
+assertParseCommand = assertParse BatchParser.command
 
 assertParseExpression :: String -> Expression -> Property.Result
 assertParseExpression = assertParse BatchParser.expression

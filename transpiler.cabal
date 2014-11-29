@@ -20,16 +20,18 @@ executable transpiler
   GHC-Options:       -Wall -threaded -O3
   GHC-Prof-Options:  -fprof-auto "-with-rtsopts=-N -p -s -i0.1"
   Build-Depends:     base >= 4 && < 5
-                     , parsec >= 3.1.7
+                     , MissingH
                      , mtl
+                     , parsec >= 3.1.7
 
 Test-suite test
   Type:              exitcode-stdio-1.0
   Hs-Source-Dirs:    src test
   Main-Is:           TestSuite.hs
   Build-Depends:     base >= 4 && < 5
-                     , parsec >= 3.1.7
+                     , MissingH
                      , mtl
+                     , parsec >= 3.1.7
 
                      , HUnit
                      , QuickCheck >= 2.7
