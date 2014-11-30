@@ -24,6 +24,7 @@ tests =
   , testProperty "ECHO [message] > NUL" prop_echotonul
   , testProperty "ECHO [message] | ECHO." prop_echopiped
   , testProperty "ECHO [message] | ECHO [message] > NUL" prop_pipedredirect
+  , testProperty "ECHO ^|" prop_EchoEscapedPipe
   ]
 
 prop_at :: Property.Result
@@ -52,6 +53,10 @@ prop_EchoMessage :: Property
 prop_EchoMessage =
   forAll messageString $ \msg ->
   assertLex ("ECHO" ++ msg) [KeywordEcho, StringTok msg]
+
+prop_EchoEscapedPipe :: Property.Result
+prop_EchoEscapedPipe =
+  assertLex "ECHO ^|" [KeywordEcho, StringTok "|"]
 
 prop_echotonul :: Property
 prop_echotonul =
@@ -87,7 +92,7 @@ messageString =
       && not (startsWith isSpace str)
       && not (startsWith (== '.') str)
       && not (endsWith isSpace str)
-      && all (`notElem` "&<>|") str
+      && all (`notElem` "&<>|^") str
       && str /= ""
       && not ("::" `isInfixOf` str)
     startsWith f str = not (null str) && f (head str)

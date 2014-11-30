@@ -78,11 +78,16 @@ keywordNoWhitespace name tok = string name *> return tok
 keyword name tok = symbol name *> return tok
 commandCharacters = "&<>|"
 unescapedString = lexeme str where
-  str = Parsec.manyTill Parsec.anyChar end
+  str = Parsec.manyTill char end
   end = Parsec.lookAhead $
           Parsec.eof
       <|> void endOfLine
       <|> void (Parsec.oneOf commandCharacters)
+  char = escapedChar <|> Parsec.anyChar
+  escapedChar = Parsec.choice $ map Parsec.try $ zipWith unescape escapedChars unescapedChars
+  escapedChars = map (\c -> ['^',c]) commandCharacters
+  unescapedChars = commandCharacters
+  unescape s r = string s *> return r
 
 dot = Token.dot tokenParser
 
