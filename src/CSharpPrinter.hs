@@ -1,6 +1,6 @@
 module CSharpPrinter (printAsCSharp) where
 
-import BatchParser
+import Batch.Parser
 
 printAsCSharp :: Script -> IO ()
 printAsCSharp s = preamble >> mapM_ printCommand s >> postamble

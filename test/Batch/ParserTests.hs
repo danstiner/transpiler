@@ -1,8 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 
-module BatchParserTests (tests) where
+module Batch.ParserTests (tests) where
 
-import           BatchParser
+import           Batch.Parser
 
 import           Data.Char
 import           Data.List
@@ -171,15 +171,15 @@ prop_exp_stringEquality = assertParseExpression
 
 assertParseScript :: String -> [Command] -> Property.Result
 assertParseScript script expected =
-  case BatchParser.parse script of
+  case Batch.Parser.parse script of
     Left error -> mkResult False (show error)
     Right parsed -> mkResult (parsed == expected) (show parsed ++ "/=" ++ show expected)
 
 assertParseCommand :: String -> Command -> Property.Result
-assertParseCommand = assertParse BatchParser.command
+assertParseCommand = assertParse Batch.Parser.command
 
 assertParseExpression :: String -> Expression -> Property.Result
-assertParseExpression = assertParse BatchParser.expression
+assertParseExpression = assertParse Batch.Parser.expression
 
 assertParse :: (Show a, Eq a) => Parsec String () a -> String -> a -> Property.Result
 assertParse parser source expected =

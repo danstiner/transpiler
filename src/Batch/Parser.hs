@@ -1,4 +1,4 @@
-module BatchParser (
+module Batch.Parser (
     parse
   , command
   , expression
