@@ -26,7 +26,7 @@ printCommand = p where
        putStrLn "}"
   p (Label str) = putStrLn $ "Label(\"" ++ str ++ "\");"
   p Noop = return ()
-  p (Pipe c1 c2) = putStrLn $ "Pipe();"
+  p (PipeCommand c1 c2) = putStrLn $ "Pipe();"
   p (Redirection c1 sink) = putStrLn $ "Redirect();"
   p (Quieted c) = putStrLn "{ Quiet();" >> printCommand c >> putStrLn "}"
   p (Rem str) = putStrLn $ "// " ++ str

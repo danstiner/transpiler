@@ -86,7 +86,7 @@ prop_script_echopiped :: Property.Result
 prop_script_echopiped =
   assertParseScript
     "ECHO %COMSPEC% | CHOICE /C:AB"
-    [Pipe (EchoMessage "%COMSPEC%") (ExternalCommand "CHOICE" "/C:AB")]
+    [PipeCommand (EchoMessage "%COMSPEC%") (ExternalCommand "CHOICE" "/C:AB")]
 
 prop_command_externalexe :: Property.Result
 prop_command_externalexe =

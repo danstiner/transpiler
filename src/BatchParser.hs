@@ -7,6 +7,8 @@ module BatchParser (
   , Expression (..)
 ) where
 
+import Batch.Lexer
+
 import           Control.Applicative
 import           Control.Monad          (void)
 import           Control.Monad.Identity (Identity)
@@ -42,7 +44,7 @@ data Command =
   | If Expression Command Command
   | Label LabelName
   | Noop
-  | Pipe Command Command
+  | PipeCommand Command Command
   | Redirection Command RedirectionSpecification
   | Quieted Command
   | Rem String
@@ -230,7 +232,7 @@ pipeCommand = do
   source <- simpleCommand
   pipe
   sink <- simpleCommand
-  return (Pipe source sink)
+  return (PipeCommand source sink)
   where
     pipe = char '|' *> skipAnyWhitespace
 
@@ -252,23 +254,6 @@ terminateCommand = Parsec.lookAhead $
       terminateLine
   <|> void (char '>')
   <|> void (char '|')
-  <|> void (string ">>")
 
 terminateExpr :: Parsec String u ()
 terminateExpr = void Parsec.space <|> Parsec.eof
-
-tokenParser :: TokenParser st
-tokenParser = makeTokenParser languageDef
-
-languageDef :: LanguageDef st
-languageDef = emptyDef
-    { commentStart   = ""
-    , commentEnd   = ""
-    , commentLine  = "::"
-    , nestedComments = True
-    , identStart   = letter
-    , identLetter  = alphaNum <|> oneOf "_'"
-    , reservedNames  = []
-    , reservedOpNames= []
-    , caseSensitive  = False
-    }
