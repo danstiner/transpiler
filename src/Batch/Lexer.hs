@@ -6,9 +6,10 @@ module Batch.Lexer (
 
 import           Control.Applicative
 import           Control.Monad        (void)
+import           Data.Char
 import           Data.List            (intercalate)
 import           Data.String.Utils    (strip)
-import           Text.Parsec          (Parsec)
+import           Text.Parsec          (Parsec, (<?>))
 import qualified Text.Parsec          as Parsec
 import           Text.Parsec.Char
 import           Text.Parsec.Language as Language
@@ -63,7 +64,7 @@ echo =
   fmap (\t -> [KeywordEcho,t]) (commandNoWhitespace "ECHO" *> (dotted <|> normal))
   where
     dotted = dot *> return Dot
-    normal = whiteSpace *> (onOff <|> msg)
+    normal = commandNameWhitespace *> (onOff <|> msg)
     onOff = Parsec.try (keyword "ON" KeywordOn) <|> Parsec.try (keyword "OFF" KeywordOff)
     msg = fmap (StringTok . strip) unescapedString
 
@@ -72,8 +73,13 @@ colonToken = char ':' *> (coloncomment <|> colonlabel)
     coloncomment = char ':' *> return [DoubleColon]
     colonlabel = return [Colon]
 
-commandNoWhitespace = string
-command = symbol
+commandNameWhitespace = Parsec.many (char ' ' <|> char '\t')
+commandNoWhitespace s = string s *> Parsec.notFollowedBy Parsec.alphaNum
+command s = do
+  x <- string s
+  Parsec.notFollowedBy Parsec.alphaNum
+  commandNameWhitespace
+  return x
 keywordNoWhitespace name tok = string name *> return tok
 keyword name tok = symbol name *> return tok
 commandCharacters = "&<>|"
@@ -84,10 +90,7 @@ unescapedString = lexeme str where
       <|> void endOfLine
       <|> void (Parsec.oneOf commandCharacters)
   char = escapedChar <|> Parsec.anyChar
-  escapedChar = Parsec.choice $ map Parsec.try $ zipWith unescape escapedChars unescapedChars
-  escapedChars = map (\c -> ['^',c]) commandCharacters
-  unescapedChars = commandCharacters
-  unescape s r = string s *> return r
+  escapedChar = Parsec.try (Parsec.char '^' *> nonspace)
 
 dot = Token.dot tokenParser
 
@@ -99,6 +102,8 @@ lexeme parser = do
   return x
 
 whiteSpace = Token.whiteSpace tokenParser
+
+nonspace = satisfy (not . isSpace) <?> "non-space"
 
 tokenParser :: TokenParser st
 tokenParser = Token.makeTokenParser languageDef

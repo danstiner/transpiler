@@ -7,7 +7,7 @@ module Batch.Parser (
   , Expression (..)
 ) where
 
-import Batch.Lexer
+import           Batch.Lexer
 
 import           Control.Applicative
 import           Control.Monad          (void)

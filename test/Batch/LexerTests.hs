@@ -4,6 +4,7 @@ import           Batch.Lexer
 
 import           Data.Char
 import           Data.List
+import           Data.String.Utils                    (strip)
 import           Text.Parsec                          (ParseError, Parsec)
 import qualified Text.Parsec                          as Parsec
 
@@ -24,7 +25,7 @@ tests =
   , testProperty "ECHO [message] > NUL" prop_echotonul
   , testProperty "ECHO [message] | ECHO." prop_echopiped
   , testProperty "ECHO [message] | ECHO [message] > NUL" prop_pipedredirect
-  , testProperty "ECHO ^|" prop_EchoEscapedPipe
+  , testProperty "ECHO ^[character]" prop_EchoEscapedCharacter
   ]
 
 prop_at :: Property.Result
@@ -52,25 +53,26 @@ prop_AtEchoOff =
 prop_EchoMessage :: Property
 prop_EchoMessage =
   forAll messageString $ \msg ->
-  assertLex ("ECHO" ++ msg) [KeywordEcho, StringTok msg]
+  assertLex ("ECHO" ++ msg) [KeywordEcho, StringTok (strip msg)]
 
-prop_EchoEscapedPipe :: Property.Result
-prop_EchoEscapedPipe =
-  assertLex "ECHO ^|" [KeywordEcho, StringTok "|"]
+prop_EchoEscapedCharacter :: Property
+prop_EchoEscapedCharacter =
+  forAll nonWhitescapeChar $ \c ->
+  assertLex ("ECHO^" ++ [c]) [KeywordEcho, StringTok [c]]
 
 prop_echotonul :: Property
 prop_echotonul =
   forAll messageString $ \msg ->
   assertLex
     ("ECHO" ++ msg ++ ">NUL")
-    [KeywordEcho, StringTok msg, GreaterThan, KeywordNul]
+    [KeywordEcho, StringTok (strip msg), GreaterThan, KeywordNul]
 
 prop_echopiped :: Property
 prop_echopiped =
   forAll messageString $ \msg ->
   assertLex
     ("ECHO" ++ msg ++ "|ECHO.")
-    [KeywordEcho, StringTok msg, Pipe, KeywordEcho, Dot]
+    [KeywordEcho, StringTok (strip msg), Pipe, KeywordEcho, Dot]
 
 prop_pipedredirect :: Property
 prop_pipedredirect =
@@ -78,7 +80,7 @@ prop_pipedredirect =
   forAll messageString $ \msg2 ->
   assertLex
     ("ECHO" ++ msg1 ++ "|ECHO" ++ msg2 ++ ">NUL")
-    [KeywordEcho, StringTok msg1, Pipe, KeywordEcho, StringTok msg2, GreaterThan, KeywordNul]
+    [KeywordEcho, StringTok (strip msg1), Pipe, KeywordEcho, StringTok (strip msg2), GreaterThan, KeywordNul]
 
 casing :: String -> Gen String
 casing = elements . permuteMap [toUpper, toLower]
@@ -89,20 +91,22 @@ messageString =
   where
     cond str =
          all (not . isControl) str
-      && not (startsWith isSpace str)
       && not (startsWith (== '.') str)
-      && not (endsWith isSpace str)
+      && not (startsWith isAlphaNum str)
       && all (`notElem` "&<>|^") str
       && str /= ""
       && not ("::" `isInfixOf` str)
     startsWith f str = not (null str) && f (head str)
     endsWith f str = not (null str) && f (last str)
 
+nonWhitescapeChar :: Gen Char
+nonWhitescapeChar = suchThat arbitrary (not . isSpace)
+
 assertLex :: String -> [Token] -> Property.Result
 assertLex str expect =
   case Parsec.parse lexer "(source)" str of
     Left e -> mkResult False (show e)
-    Right r -> mkResult (r == expect) ("Actual:\n" ++ show r ++ "\n\nExpected:\n" ++ show expect ++ "\n\n")
+    Right r -> mkResult (r == expect) ("Actual:\n" ++ show r ++ "\nExpected:\n" ++ show expect ++ "\n")
 
 mkResult result msg = MkResult (Just result) True msg Nothing False [] []
 
