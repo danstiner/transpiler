@@ -2,9 +2,9 @@ module CSharp.Printer (printProject, toBuilder) where
 
 import CSharp.Definitions
 
-import Data.String.Utils
+import Control.Exception       (assert)
 import Data.ByteString.Builder
-import Control.Exception (assert)
+import Data.String.Utils
 
 printProject :: Project -> IO ()
 printProject (Project files) = putStrLn "Project" >> mapM_ printFile files

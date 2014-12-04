@@ -1,9 +1,9 @@
 module Batch.Transformer (from,to) where
 
-import qualified Common as C
-import Batch.Definitions
+import           Batch.Definitions
+import qualified Common            as C
 
-import Control.Exception (assert)
+import           Control.Exception (assert)
 
 data Subroutine = Subroutine { unLabel :: String, unBody :: [Command] }
 
@@ -33,9 +33,7 @@ groupSubroutines = go where
   consume' xs ys@(Label l:_) = (xs, ys)
   consume' xs (y:ys) = consume' (xs++[y]) ys
   consume' _ _ = assert False undefined
-  callNext xs = if not (null xs)
-                  then [Call (unLabel $ head xs)]
-                  else []
+  callNext xs = [Call (unLabel $ head xs) | not (null xs)]
 
 body :: [Command] -> [C.Statement]
 body = map statement

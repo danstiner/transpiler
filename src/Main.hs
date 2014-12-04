@@ -1,7 +1,7 @@
 import Batch.Parser
 import Batch.Transformer
-import CSharp.Transformer
 import CSharp.Printer
+import CSharp.Transformer
 
 main :: IO ()
 main = getContents >>= parseAndPrint where

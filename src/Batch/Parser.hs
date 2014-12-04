@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Batch.Parser (
     parse
@@ -11,23 +12,24 @@ module Batch.Parser (
   , Expression (..)
 ) where
 
+import           Batch.Definitions
 import           Batch.Lexer
-import Batch.Definitions
 
-import Text.Parsec.Pos (SourcePos)
 import           Control.Applicative
 import           Control.Monad          (void)
 import           Control.Monad.Identity (Identity)
 import           Data.Char
 import           Data.List              (intercalate)
 import           Data.String.Utils
-import           Text.Parsec            (ParseError, Parsec, ParsecT, Stream, (<?>))
+import           Text.Parsec            (ParseError, Parsec, ParsecT, Stream,
+                                         (<?>))
 import qualified Text.Parsec            as Parsec
-import Text.Parsec.Char (char, endOfLine, string)
+import           Text.Parsec.Char       (char, endOfLine, string)
+import           Text.Parsec.Combinator
 import           Text.Parsec.Language
+import           Text.Parsec.Pos        (SourcePos)
+import           Text.Parsec.Prim       hiding (parse, (<|>))
 import           Text.Parsec.Token
-import Text.Parsec.Prim hiding ((<|>),parse)
-import Text.Parsec.Combinator
 
 type Script = [Command]
 
@@ -41,31 +43,31 @@ parseTokens :: Tokens -> Either ParseError Command
 parseTokens = Parsec.parse tokScript "(tokens)"
 
 tokScript :: Parsec Tokens st Command
-tokScript = Parsec.many tokCommand >>= return . Program
+tokScript = Program <$> Parsec.many tokCommand
 
 tokCommand :: Parsec Tokens st Command
 tokCommand = do
   c <- nextCommand
-  (pipeTok c <|> redirectTok c <|> return c)
+  pipeTok c <|> redirectTok c <|> return c
   where
     nextCommand = atTok <|> echoTok <|> labelTok <|> gotoTok
 
-atTok = tok At *> tokCommand >>= return . Quieted
-labelTok = tok Colon *> stringTok >>= return . Label
-gotoTok = tok KeywordGoto *> stringTok >>= return . Goto
+atTok = Quieted <$> (tok At *> tokCommand)
+labelTok = Label <$> (tok Colon *> stringTok)
+gotoTok = Goto <$> (tok KeywordGoto *> stringTok)
 echoTok = tok KeywordEcho *> (dot <|> msg <|> on <|> off) where
-  msg = stringTok >>= return . EchoMessage
+  msg = EchoMessage <$> stringTok
   dot = tok Dot *> return (EchoMessage "")
   on = tok KeywordOn *> return (EchoEnabled True)
   off = tok KeywordOff *> return (EchoEnabled False)
 
-pipeTok c = tok Pipe *> tokCommand >>= return . PipeCommand c
-redirectTok c = tok GreaterThan *> filepathTok >>= return . Redirection c
+pipeTok c = PipeCommand c <$> (tok Pipe *> tokCommand)
+redirectTok c = Redirection c <$> (tok GreaterThan *> filepathTok)
 
 filepathTok = stringTok
 
 stringTok :: (Stream s m Token) => ParsecT s u m String
-stringTok = (satisfy f >>= return . extract) <?> "string" where
+stringTok = (extract <$> satisfy f) <?> "string" where
   f (StringTok _) = True
   f _ = False
   extract (StringTok s) = s
@@ -74,7 +76,7 @@ tok :: (Stream s m Token) => Token -> ParsecT s u m Token
 tok t = satisfy (==t) <?> show t
 
 satisfy :: (Stream s m Token) => (Token -> Bool) -> ParsecT s u m Token
-satisfy f = Parsec.tokenPrim (\c -> show c)
+satisfy f = Parsec.tokenPrim show
                              (\pos c _cs -> updatePosToken pos c)
                              (\c -> if f c then Just c else Nothing)
 

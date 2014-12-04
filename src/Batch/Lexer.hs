@@ -10,7 +10,7 @@ import           Control.Monad        (void)
 import           Data.Char
 import           Data.List            (intercalate)
 import           Data.String.Utils    (strip)
-import           Text.Parsec          (Parsec, ParseError, (<?>))
+import           Text.Parsec          (ParseError, Parsec, (<?>))
 import qualified Text.Parsec          as Parsec
 import           Text.Parsec.Char
 import           Text.Parsec.Language as Language
@@ -49,7 +49,7 @@ lexer = intercalate [] <$> (whiteSpace *> Parsec.manyTill nextTokens Parsec.eof)
 
 nextTokens :: Parsec String st Tokens
 nextTokens
-  = Parsec.choice $ (map toList singleTokens) ++ multiTokens
+  = Parsec.choice $ map toList singleTokens ++ multiTokens
   where
     toList = fmap (:[])
     singleTokens = [
@@ -103,9 +103,9 @@ echoCommand =
 
 colons = char ':' *> (comment <|> label)
   where
-    comment = char ':' *> commentStringTok >>= return . (\s -> [DoubleColon,s])
-    label = unescapedString >>= return . (\s -> [Colon,s]) . StringTok . strip
-    commentStringTok = Parsec.manyTill anyChar (Parsec.eof <|> void endOfLine) >>= return . StringTok
+    comment = (\s -> [DoubleColon,s]) <$> (char ':' *> commentStringTok)
+    label = (\s -> [Colon,s]) . StringTok . strip <$> unescapedString
+    commentStringTok = StringTok <$> Parsec.manyTill anyChar (Parsec.eof <|> void endOfLine)
 
 expression :: Parsec String st Tokens
 expression = return [KeywordTrue]

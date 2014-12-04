@@ -2,8 +2,8 @@
 
 module Batch.ParserTests (tests) where
 
+import           Batch.Lexer
 import           Batch.Parser
-import Batch.Lexer
 
 import           Data.Char
 import           Data.List

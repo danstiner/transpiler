@@ -1,9 +1,9 @@
 module CSharp.Transformer (from,to) where
 
-import qualified Common as C
-import CSharp.Definitions
+import qualified Common             as C
+import           CSharp.Definitions
 
-import Control.Exception (assert)
+import           Control.Exception  (assert)
 
 from :: Project -> C.Project
 from = assert False undefined
