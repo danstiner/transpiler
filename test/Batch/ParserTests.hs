@@ -3,6 +3,7 @@
 module Batch.ParserTests (tests) where
 
 import           Batch.Parser
+import Batch.Lexer
 
 import           Data.Char
 import           Data.List
@@ -15,7 +16,7 @@ import           Test.QuickCheck
 import           Test.QuickCheck.Property             as Property
 
 tests :: [Test]
-tests = scriptTests ++ commandTests ++ expressionTests
+tests = scriptTests ++ commandTests ++ commandParseTests ++ expressionTests
 
 scriptTests, commandTests, expressionTests :: [Test]
 
@@ -29,6 +30,13 @@ scriptTests =
   ]
 
 commandTests =
+  [
+    testProperty ":[label]" prop_label
+  , testProperty "@ECHO OFF" prop_atEchoOff
+  , testProperty "ECHO [message]" prop_echoMessage
+  ]
+
+commandParseTests =
   [
     testProperty ":[label]" prop_command_label
   , testProperty "@ECHO OFF" prop_command_AtEchoOff
@@ -55,6 +63,18 @@ expressionTests =
   , testProperty "NOT TRUE" prop_exp_nottrue
   , testProperty "TRUE" prop_exp_true
   ]
+
+prop_atEchoOff :: String -> Property.Result
+prop_atEchoOff msg =
+  assertTokCommand [At, KeywordEcho, StringTok msg] (Quieted (EchoMessage msg))
+
+prop_echoMessage :: String -> Property.Result
+prop_echoMessage msg =
+  assertTokCommand [KeywordEcho, StringTok msg] (EchoMessage msg)
+
+prop_label :: String -> Property.Result
+prop_label name =
+  assertTokCommand [Colon, StringTok name] (Label name)
 
 prop_script_Empty :: Property.Result
 prop_script_Empty = assertParseScript "" []
@@ -180,6 +200,14 @@ assertParseCommand = assertParse Batch.Parser.command
 
 assertParseExpression :: String -> Expression -> Property.Result
 assertParseExpression = assertParse Batch.Parser.expression
+
+assertParseTokens :: (Show a, Eq a) => Parsec Tokens () a -> Tokens -> a -> Property.Result
+assertParseTokens parser source expected =
+  case Parsec.parse parser "(source)" source of
+    Left error -> mkResult False (show error)
+    Right parsed -> mkResult (parsed == expected) (show parsed ++ "/=" ++ show expected)
+
+assertTokCommand = assertParseTokens tokCommand
 
 assertParse :: (Show a, Eq a) => Parsec String () a -> String -> a -> Property.Result
 assertParse parser source expected =

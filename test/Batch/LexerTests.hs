@@ -16,7 +16,9 @@ import           Test.QuickCheck.Property             as Property
 tests :: [Test]
 tests =
   [
-    testProperty "@" prop_at
+    testProperty "<empty>" prop_Empty
+  , testProperty "<whitespace>" prop_Whitespace
+  , testProperty "@" prop_at
   , testProperty "ECHO." prop_EchoDot
   , testProperty "@ECHO OFF" prop_AtEchoOff
   , testProperty "ECHO [message]" prop_EchoMessage
@@ -26,7 +28,18 @@ tests =
   , testProperty "ECHO [message] | ECHO." prop_echopiped
   , testProperty "ECHO [message] | ECHO [message] > NUL" prop_pipedredirect
   , testProperty "ECHO ^[character]" prop_EchoEscapedCharacter
+  , testProperty "::[CommentMessage]" prop_comment
   ]
+
+prop_Empty :: Property.Result
+prop_Empty = assertLex "" []
+
+prop_Whitespace :: Property
+prop_Whitespace =
+  forAll genWhitespace $ \whitespace ->
+  assertLex whitespace []
+  where
+    genWhitespace = suchThat arbitrary (all isSpace)
 
 prop_at :: Property.Result
 prop_at = assertLex "@" [At]
@@ -81,6 +94,11 @@ prop_pipedredirect =
   assertLex
     ("ECHO" ++ msg1 ++ "|ECHO" ++ msg2 ++ ">NUL")
     [KeywordEcho, StringTok (strip msg1), Pipe, KeywordEcho, StringTok (strip msg2), GreaterThan, KeywordNul]
+
+prop_comment :: Property
+prop_comment =
+  forAll messageString $ \msg ->
+  assertLex ("::" ++ msg) [DoubleColon, StringTok msg]
 
 casing :: String -> Gen String
 casing = elements . permuteMap [toUpper, toLower]

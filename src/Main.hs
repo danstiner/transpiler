@@ -1,9 +1,12 @@
 import Batch.Parser
-import CSharpPrinter
+import Batch.Transformer
+import CSharp.Transformer
+import CSharp.Printer
 
 main :: IO ()
 main = getContents >>= parseAndPrint where
-  parseAndPrint = p . Batch.Parser.parse
+  parseAndPrint = p . Batch.Parser.parse'
   p parsed = case parsed of
-    Left error -> print error
-    Right script -> printAsCSharp script
+    Left err -> print err
+    Right program -> transformAndPrint program
+  transformAndPrint = CSharp.Printer.printProject . CSharp.Transformer.to . Batch.Transformer.from

@@ -1,66 +1,87 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Batch.Parser (
     parse
+  , parse'
   , command
   , expression
+  , tokCommand
   , Script
   , Command (..)
   , Expression (..)
 ) where
 
 import           Batch.Lexer
+import Batch.Definitions
 
+import Text.Parsec.Pos (SourcePos)
 import           Control.Applicative
 import           Control.Monad          (void)
 import           Control.Monad.Identity (Identity)
 import           Data.Char
 import           Data.List              (intercalate)
 import           Data.String.Utils
-import           Text.Parsec            (ParseError, Parsec)
+import           Text.Parsec            (ParseError, Parsec, ParsecT, Stream, (<?>))
 import qualified Text.Parsec            as Parsec
-import           Text.Parsec.Char
+import Text.Parsec.Char (char, endOfLine, string)
 import           Text.Parsec.Language
 import           Text.Parsec.Token
+import Text.Parsec.Prim hiding ((<|>),parse)
+import Text.Parsec.Combinator
 
-type RedirectionSpecification = FilePath
-type VarName = String
-type LabelName = String
 type Script = [Command]
-data Expression =
-    ErrorLevelExpr Integer
-  | EqualsExpr Expression Expression
-  | Exist FilePath
-  | FalseExpr
-  | NotExpr Expression
-  | StringExpr String
-  | TrueExpr
-  deriving (Eq, Show)
-
-data Command =
-    EchoMessage String
-  | EchoEnabled Bool
-  | Find String [FilePath]
-  | Goto LabelName
-  | GotoEof
-  | If Expression Command Command
-  | Label LabelName
-  | Noop
-  | PipeCommand Command Command
-  | Redirection Command RedirectionSpecification
-  | Quieted Command
-  | Rem String
-  | Rename FilePath FilePath
-  | RmDir { rmDirRecurse :: Bool, rmDirQuiet :: Bool, rmDirPath :: FilePath }
-  | Set VarName Expression
-  | Type [FilePath]
-  | Ver
-  | Verify Bool
-  | ExternalCommand String String
-  deriving (Eq, Show)
 
 parse :: String -> Either ParseError Script
 parse = Parsec.parse script "(source)"
 
-script :: Parsec String u [Command]
+parse' :: String -> Either ParseError Command
+parse' source = Parsec.parse lexer "(source)" source >>= parseTokens
+
+parseTokens :: Tokens -> Either ParseError Command
+parseTokens = Parsec.parse tokScript "(tokens)"
+
+tokScript :: Parsec Tokens st Command
+tokScript = Parsec.many tokCommand >>= return . Program
+
+tokCommand :: Parsec Tokens st Command
+tokCommand = do
+  c <- nextCommand
+  (pipeTok c <|> redirectTok c <|> return c)
+  where
+    nextCommand = atTok <|> echoTok <|> labelTok <|> gotoTok
+
+atTok = tok At *> tokCommand >>= return . Quieted
+labelTok = tok Colon *> stringTok >>= return . Label
+gotoTok = tok KeywordGoto *> stringTok >>= return . Goto
+echoTok = tok KeywordEcho *> (dot <|> msg <|> on <|> off) where
+  msg = stringTok >>= return . EchoMessage
+  dot = tok Dot *> return (EchoMessage "")
+  on = tok KeywordOn *> return (EchoEnabled True)
+  off = tok KeywordOff *> return (EchoEnabled False)
+
+pipeTok c = tok Pipe *> tokCommand >>= return . PipeCommand c
+redirectTok c = tok GreaterThan *> filepathTok >>= return . Redirection c
+
+filepathTok = stringTok
+
+stringTok :: (Stream s m Token) => ParsecT s u m String
+stringTok = (satisfy f >>= return . extract) <?> "string" where
+  f (StringTok _) = True
+  f _ = False
+  extract (StringTok s) = s
+
+tok :: (Stream s m Token) => Token -> ParsecT s u m Token
+tok t = satisfy (==t) <?> show t
+
+satisfy :: (Stream s m Token) => (Token -> Bool) -> ParsecT s u m Token
+satisfy f = Parsec.tokenPrim (\c -> show c)
+                             (\pos c _cs -> updatePosToken pos c)
+                             (\c -> if f c then Just c else Nothing)
+
+updatePosToken :: SourcePos -> Token -> SourcePos
+updatePosToken pos _ = Parsec.incSourceColumn pos 1
+
+script :: Parsec String st [Command]
 script = do
   s <- commands
   Parsec.eof
@@ -93,7 +114,7 @@ builtins = commandParser [
   , Parsec.try goto
   , gotoEof
   , ifCommand
-  , label
+  , labelCommand
   , quieted
   , rd
   , remCommand
@@ -166,8 +187,8 @@ remCommand = fmap Rem
   >> skipSomeWhitespace
   >> stringExp)
 
-label :: Parsec String st Command
-label = fmap Label (char ':' >> stringExp)
+labelCommand :: Parsec String st Command
+labelCommand = fmap Label (char ':' >> stringExp)
 
 goto :: Parsec String st Command
 goto = fmap Goto (string "GOTO" >> skipSomeWhitespace >> stringExp)
@@ -242,7 +263,7 @@ skipSomeWhitespace = Parsec.skipMany1 printableWhitespace
 
 stringExp = Parsec.manyTill Parsec.anyChar terminateCommand
 
-printableWhitespace = satisfy (\c -> isSpace c && isPrint c)
+printableWhitespace = Parsec.satisfy (\c -> isSpace c && isPrint c)
 
 filePath = Parsec.manyTill Parsec.anyChar terminateExpr
 
