@@ -12,18 +12,17 @@ matrix:
 
 before_install:
  - sudo add-apt-repository -y ppa:hvr/ghc
- - sudo add-apt-repository -y "deb http://us-east-1.ec2.archive.ubuntu.com/ubuntu/ trusty main"
  - sudo apt-get update
- - sudo apt-get install cabal-install-1.20 ghc-$GHCVER
- - sudo apt-get install libleveldb-dev -t trusty
+ - sudo apt-get install cabal-install-1.20 ghc-$GHCVER happy-1.19.3
+ - cabal update
 
 install:
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/1.20/bin:$PATH
+ - export PATH=/opt/happy/1.19.3/bin:/opt/ghc/$GHCVER/bin:$PATH
  - cabal --version
- - cabal update
- - git clone https://github.com/danstiner/hfmt.git
+ - git clone https://github.com/danstiner/hfmt.git ../hfmt
  - cabal sandbox init
- - cabal sandbox add-source hfmt
+ - cabal sandbox add-source ../hfmt
  - cabal install -j --enable-tests --enable-benchmarks --only-dependencies
 
 script:
