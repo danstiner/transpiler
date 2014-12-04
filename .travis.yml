@@ -10,11 +10,6 @@ matrix:
   allow_failures:
    - env: GHCVER=head
 
-cache:
-  directories:
-   - $HOME/.cabal
-   - $HOME/.ghc
-
 before_install:
  - sudo add-apt-repository -y ppa:hvr/ghc
  - sudo add-apt-repository -y "deb http://us-east-1.ec2.archive.ubuntu.com/ubuntu/ trusty main"
@@ -26,6 +21,9 @@ install:
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/1.20/bin:$PATH
  - cabal --version
  - cabal update
+ - git clone https://github.com/danstiner/hfmt.git
+ - cabal sandbox init
+ - cabal sandbox add-source hfmt
  - cabal install -j --enable-tests --enable-benchmarks --only-dependencies
 
 script:
@@ -35,4 +33,3 @@ script:
  - cabal test
  - cabal check
  - cabal sdist
-
