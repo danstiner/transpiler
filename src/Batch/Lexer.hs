@@ -1,6 +1,5 @@
 module Batch.Lexer (
-    tokenParser
-  , lexer
+    lexer
   , Token (..)
   , Tokens
 ) where
@@ -20,29 +19,29 @@ import qualified Text.Parsec.Token    as Token
 type Tokens = [Token]
 
 data Token
-  = LeftParen
-  | RightParen
+  = At
   | Colon
-  | DoubleColon
-  | At
   | Dot
-  | GreaterThan
-  | LessThan
-  | Pipe
-  | StringTok String
+  | DoubleColon
   | Equals
+  | GreaterThan
+  | KeywordEcho
+  | KeywordElse
+  | KeywordGoto
   | KeywordIf
   | KeywordNot
-  | KeywordEcho
-  | KeywordOn
-  | KeywordOff
   | KeywordNul
-  | KeywordElse
+  | KeywordOff
+  | KeywordOn
   | KeywordTrue
-  | KeywordGoto
+  | LeftParen
+  | LessThan
+  | Pipe
+  | RightParen
+  | StringTok String
   deriving (Eq,Show)
 
-commandCharacters = "&<>|"
+controlSequences = ["&", "<", ">", "|", "::"]
 
 lexer :: Parsec String st Tokens
 lexer = intercalate [] <$> (whiteSpace *> Parsec.manyTill nextTokens Parsec.eof)
@@ -75,6 +74,13 @@ keywordPipe = keyword "|" Pipe
 redirectLeft = keyword "<" LessThan
 redirectRight = keyword ">" GreaterThan
 
+colons = char ':' *> (comment <|> label)
+  where
+    comment = (\s -> [DoubleColon,s]) <$> (char ':' *> commentStringTok)
+    label = (\s -> [Colon,s]) . StringTok . strip <$> unescapedString
+    commentStringTok = StringTok <$> Parsec.manyTill anyChar (Parsec.eof <|> void endOfLine)
+
+ifBlock :: Parsec String st [Token]
 ifBlock = do
   ifToken <- keywordIf
   expr <- expression
@@ -90,7 +96,7 @@ gotoCommand :: Parsec String st [Token]
 gotoCommand = do
   gotoTok <- keywordGoto
   label <- unescapedString
-  return [gotoTok, StringTok label]
+  return [gotoTok, StringTok (strip label)]
 
 echoCommand :: Parsec String st [Token]
 echoCommand =
@@ -100,12 +106,6 @@ echoCommand =
     normal = commandNameWhitespace *> (onOff <|> msg)
     onOff = Parsec.try (keyword "ON" KeywordOn) <|> Parsec.try (keyword "OFF" KeywordOff)
     msg = fmap (StringTok . strip) unescapedString
-
-colons = char ':' *> (comment <|> label)
-  where
-    comment = (\s -> [DoubleColon,s]) <$> (char ':' *> commentStringTok)
-    label = (\s -> [Colon,s]) . StringTok . strip <$> unescapedString
-    commentStringTok = StringTok <$> Parsec.manyTill anyChar (Parsec.eof <|> void endOfLine)
 
 expression :: Parsec String st Tokens
 expression = return [KeywordTrue]
@@ -130,11 +130,11 @@ unescapedString = lexeme str where
   end = Parsec.lookAhead $
           Parsec.eof
       <|> void endOfLine
-      <|> void (Parsec.oneOf commandCharacters)
+      <|> void (Parsec.choice $ map (Parsec.try . Parsec.string) controlSequences)
   char = escapedChar <|> Parsec.anyChar
   escapedChar = Parsec.try (Parsec.char '^' *> nonspace)
 
-dot = Token.dot tokenParser *> return Dot
+dot = Parsec.char '.' *> return Dot
 
 symbol name = lexeme (string name)
 
@@ -143,22 +143,8 @@ lexeme parser = do
   whiteSpace
   return x
 
-whiteSpace = Token.whiteSpace tokenParser
+whiteSpace = Parsec.eof <|> Parsec.skipMany (Parsec.oneOf chars <?> "")
+  where
+    chars = " \n\r\t\v\f"
 
 nonspace = satisfy (not . isSpace) <?> "non-space"
-
-tokenParser :: TokenParser st
-tokenParser = Token.makeTokenParser languageDef
-
-languageDef :: LanguageDef st
-languageDef = emptyDef
-    { Token.commentStart   = ""
-    , Token.commentEnd   = ""
-    , Token.commentLine  = ""
-    , Token.nestedComments = True
-    , Token.identStart   = letter
-    , Token.identLetter  = alphaNum <|> oneOf "_'"
-    , Token.reservedNames  = []
-    , Token.reservedOpNames= []
-    , Token.caseSensitive  = False
-    }
