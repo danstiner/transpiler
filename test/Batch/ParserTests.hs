@@ -23,9 +23,9 @@ commandTests =
   [
     testProperty ":[label]" prop_label
   , testProperty "@ECHO OFF" prop_atEchoOff
+  , testProperty "GOTO [label]" prop_goto
   , testProperty "ECHO [message]" prop_echoMessage
   ]
-
 
 prop_atEchoOff :: String -> Property.Result
 prop_atEchoOff msg =
@@ -34,6 +34,10 @@ prop_atEchoOff msg =
 prop_echoMessage :: String -> Property.Result
 prop_echoMessage msg =
   assertTokCommand [KeywordEcho, StringTok msg] (EchoMessage msg)
+
+prop_goto :: String -> Property.Result
+prop_goto name =
+  assertTokCommand [KeywordGoto, StringTok name] (Goto name)
 
 prop_label :: String -> Property.Result
 prop_label name =

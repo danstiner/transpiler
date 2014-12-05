@@ -2,19 +2,17 @@ module Batch.Lexer (
     lexer
   , Token (..)
   , Tokens
+  , whiteSpaceCharacters
 ) where
 
 import           Control.Applicative
-import           Control.Monad        (void)
+import           Control.Monad       (void)
 import           Data.Char
-import           Data.List            (intercalate)
-import           Data.String.Utils    (strip)
-import           Text.Parsec          (ParseError, Parsec, (<?>))
-import qualified Text.Parsec          as Parsec
+import           Data.List           (intercalate)
+import           Data.String.Utils   (strip)
+import           Text.Parsec         (Parsec, (<?>))
+import qualified Text.Parsec         as Parsec
 import           Text.Parsec.Char
-import           Text.Parsec.Language as Language
-import           Text.Parsec.Token    (TokenParser)
-import qualified Text.Parsec.Token    as Token
 
 type Tokens = [Token]
 
@@ -42,6 +40,8 @@ data Token
   deriving (Eq,Show)
 
 controlSequences = ["&", "<", ">", "|", "::"]
+
+whiteSpaceCharacters = " \n\r\t\v\f"
 
 lexer :: Parsec String st Tokens
 lexer = intercalate [] <$> (whiteSpace *> Parsec.manyTill nextTokens Parsec.eof)
@@ -143,8 +143,7 @@ lexeme parser = do
   whiteSpace
   return x
 
-whiteSpace = Parsec.eof <|> Parsec.skipMany (Parsec.oneOf chars <?> "")
-  where
-    chars = " \n\r\t\v\f"
+whiteSpace = Parsec.eof <|> Parsec.skipMany (Parsec.oneOf whiteSpaceCharacters <?> "")
 
+nonspace :: Parsec String st Char
 nonspace = satisfy (not . isSpace) <?> "non-space"

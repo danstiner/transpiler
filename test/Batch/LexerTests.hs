@@ -122,7 +122,7 @@ prop_whitespace =
   forAll genWhitespace $ \whitespace ->
   assertLex whitespace []
   where
-    genWhitespace = suchThat arbitrary (all (\c -> isSpace c && isPrint c))
+    genWhitespace = suchThat arbitrary (all (`elem` whiteSpaceCharacters))
 
 casing :: String -> Gen String
 casing = elements . permuteMap [toUpper, toLower]
