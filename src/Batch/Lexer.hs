@@ -47,11 +47,10 @@ lexer :: Parsec String st Tokens
 lexer = intercalate [] <$> (whiteSpace *> Parsec.manyTill nextTokens Parsec.eof)
 
 nextTokens :: Parsec String st Tokens
-nextTokens
-  = Parsec.choice $ map toList singleTokens ++ multiTokens
+nextTokens = lexeme $ Parsec.choice (singleTokens ++ multiTokens)
   where
     toList = fmap (:[])
-    singleTokens = [
+    singleTokens = map toList [
         keywordAt
       , redirectRight
       , redirectLeft

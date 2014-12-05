@@ -16,12 +16,13 @@ import           Test.QuickCheck.Property             as Property
 tests :: [Test]
 tests =
   [
-    testProperty "<empty>" prop_empty
+    testProperty "[]" prop_empty
   , testProperty "::[Comment]" prop_comment
   , testProperty ":[Label]" prop_label
-  , testProperty "<whitespace>" prop_whitespace
   , testProperty "@" prop_at
   , testProperty "@ECHO OFF" prop_atEchoOff
+  , testProperty "[command][whitespace]" prop_commandThenWhitespace
+  , testProperty "[whitespace]" prop_whitespace
   , testProperty "ECHO [message] > NUL" prop_echotonul
   , testProperty "ECHO [message] | ECHO [message] > NUL" prop_pipedredirect
   , testProperty "ECHO [message] | ECHO." prop_echopiped
@@ -42,6 +43,11 @@ prop_atEchoOff :: Property.Result
 prop_atEchoOff =
   let arg = "OFF" in
   assertLex ("@ECHO " ++ arg) [At, KeywordEcho, KeywordOff]
+
+prop_commandThenWhitespace :: Property
+prop_commandThenWhitespace =
+  forAll genWhitespace $ \whitespace ->
+  assertLex ("ECHO." ++ whitespace) [KeywordEcho, Dot]
 
 prop_comment :: Property
 prop_comment =
@@ -121,8 +127,9 @@ prop_whitespace :: Property
 prop_whitespace =
   forAll genWhitespace $ \whitespace ->
   assertLex whitespace []
-  where
-    genWhitespace = suchThat arbitrary (all (`elem` whiteSpaceCharacters))
+
+genWhitespace :: Gen String
+genWhitespace = suchThat arbitrary (all (`elem` whiteSpaceCharacters))
 
 casing :: String -> Gen String
 casing = elements . permuteMap [toUpper, toLower]
