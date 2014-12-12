@@ -11,15 +11,11 @@ import           Test.Framework                 (defaultMain, testGroup)
 import           Test.Framework.Providers.HUnit
 
 main :: IO ()
-main = do
-  src <- hunitGlob "src/**/*.hs"
-  test <- hunitGlob "test/**/*.hs"
-  defaultMain [
+main = defaultMain [
       testGroup "Batch.Lexer" Batch.LexerTests.tests
     , testGroup "Batch.Parser" Batch.ParserTests.tests
     , testGroup "Batch.Transformer" Batch.TransformerTests.tests
     , testGroup "CSharp.Printer" CSharp.PrinterTests.tests
     , testGroup "CSharp.Transformer" CSharp.TransformerTests.tests
-    , testGroup "Validate Formatting in src/**/*.hs" (hUnitTestToTests src)
-    , testGroup "Validate Formatting in test/**/*.hs" (hUnitTestToTests test)
+    , testGroup "Source formatting" (hUnitTestToTests $ Hfmt.hunitPackage "transpiler.cabal")
     ]
