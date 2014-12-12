@@ -60,7 +60,7 @@ redirect :: Command -> Parsec Tokens st Command
 redirect c = Redirection c <$> (tok GreaterThan *> filepathTok)
 
 filepathTok :: (Stream s m Token) => ParsecT s u m String
-filepathTok = stringTok
+filepathTok = stringTok <|> (tok KeywordNul *> return "Nul")
 
 stringTok :: (Stream s m Token) => ParsecT s u m String
 stringTok = (extract <$> satisfy f) <?> "string" where

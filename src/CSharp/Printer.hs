@@ -1,9 +1,10 @@
-module CSharp.Printer (printProject, toBuilder) where
+module CSharp.Printer (printProject) where
 
 import CSharp.Definitions
 
 import Control.Exception       (assert)
 import Data.ByteString.Builder
+import Data.List
 import Data.String.Utils
 
 printProject :: Project -> IO ()
@@ -20,23 +21,24 @@ printMember (StaticFunction name body) = putStr "static function " >> putStr nam
 printMember _ = assert False undefined
 
 printStatement :: Statement -> IO ()
-printStatement (FunctionCall funcRef args) = printFuncRef funcRef >> putStr "(">> printArguments args >> putStrLn ");"
+printStatement (FunctionCall funcRef args) = putStrLn $ printFuncRef funcRef ++ "(" ++ printArguments args ++ ");"
 printStatement _ = assert False undefined
 
-printFuncRef :: FuncRef -> IO ()
-printFuncRef (FuncRef classRef name) = printClassRef classRef >> putStr name
+printFuncRef :: FuncRef -> String
+printFuncRef (FuncRef (ClassRef path) name) = intercalate "." (path ++ [name])
 
-printClassRef :: ClassRef -> IO ()
-printClassRef (ClassRef path) = putStr $ foldr (\l r -> l ++ "." ++ r) "" path
+printArguments :: [Argument] -> String
+printArguments = intercalate ", " . map printArgument
 
-printArguments = mapM_ printArgument
-
-printArgument :: Argument -> IO ()
-printArgument (StringArg str) = putStr "\"" >> putStr (escapeString str) >> putStr "\""
-printArgument (BoolArg b) = if b then putStr "true" else putStr "false"
+printArgument :: Argument -> String
+printArgument (StringArg str) = "\"" ++ escapeString str ++ "\""
+printArgument (BoolArg b) = if b then "true" else "false"
+printArgument (ExprArg e) = printExpression e
 printArgument _ = assert False undefined
 
-escapeString = replace "\"" "\\\""
+printExpression :: Expression -> String
+printExpression (FunctionCallExpr funcRef args) = printFuncRef funcRef ++ "(" ++ printArguments args ++ ")"
+printExpression _ = assert False undefined
 
-toBuilder :: File -> Builder
-toBuilder = assert False undefined
+escapeString :: String -> String
+escapeString = replace "\"" "\\\""

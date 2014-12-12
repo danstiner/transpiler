@@ -34,4 +34,9 @@ toClassRef _ = assert False undefined
 toArgument :: C.Argument -> Argument
 toArgument (C.StringArg str) = StringArg str
 toArgument (C.BoolArg b) = BoolArg b
+toArgument (C.ExprArg e) = ExprArg (toExpression e)
 toArgument _ = assert False undefined
+
+toExpression :: C.Expression -> Expression
+toExpression (C.FunctionCallExpr func args) = FunctionCallExpr (toFuncRef func) (map toArgument args)
+toExpression _ = assert False undefined

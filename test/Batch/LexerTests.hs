@@ -24,8 +24,10 @@ tests =
   , testProperty "[command][whitespace]" prop_commandThenWhitespace
   , testProperty "[whitespace]" prop_whitespace
   , testProperty "ECHO [message] > NUL" prop_echotonul
+  -- , testProperty "ECHO [message] > [path]" prop_echotopath
   , testProperty "ECHO [message] | ECHO [message] > NUL" prop_pipedredirect
   , testProperty "ECHO [message] | ECHO." prop_echopiped
+  -- , testProperty "ECHO [message] > [filepath]" prop_echoredirect
   , testProperty "ECHO [message]" prop_echoMessage
   , testProperty "ECHO [message]::[Comment]" prop_echoMessageComment
   , testProperty "ECHO ^[character]" prop_echoEscapedCharacter

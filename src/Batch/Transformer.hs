@@ -23,37 +23,53 @@ subroutinesToFunctions = map (\sub -> C.Function (unLabel sub) (body $ unBody su
 groupSubroutines :: [Command] -> [Subroutine]
 groupSubroutines = go where
   go [] = []
-  go (Label l:cs) = let (body, cs') = consume cs
+  go (Label l:cs) = let (statements, cs') = consume cs
                         following   = go cs' in
-                    Subroutine l (body ++ callNext following) : following
+                    Subroutine l (statements ++ callNext following) : following
   go cs = go (Label "":cs)
   consume = consume' []
   consume' :: [Command] -> [Command] -> ([Command], [Command])
   consume' xs [] = (xs, [])
-  consume' xs ys@(Label l:_) = (xs, ys)
+  consume' xs ys@(Label _:_) = (xs, ys)
   consume' xs (y:ys) = consume' (xs++[y]) ys
-  consume' _ _ = assert False undefined
   callNext xs = [Call (unLabel $ head xs) | not (null xs)]
 
 body :: [Command] -> [C.Statement]
 body = map statement
 
 statement :: Command -> C.Statement
-statement (EchoMessage msg) = C.FunctionCall echoFunc [C.StringArg msg]
-statement (EchoEnabled b) = C.FunctionCall echoEnableFunc [C.BoolArg b]
-statement (Quieted c) = statement c -- TODO
+statement (Quieted c) = C.FunctionCall quietFunc [C.ExprArg $ expression c]
 statement (Call label) = C.FunctionCall (userFunc label) []
 statement (Goto label) = C.FunctionCall (userFunc label) []
-statement _ = assert False undefined
+statement c = C.FunctionCall printFunc [C.ExprArg $ expression c]
 
-userFunc = C.FuncRef userNS
-echoFunc = C.FuncRef internalNS "Echo"
+expression :: Command -> C.Expression
+expression (EchoEnabled b) = C.FunctionCallExpr echoEnableFunc [C.BoolArg b]
+expression (EchoMessage msg) = C.FunctionCallExpr echoFunc [C.StringArg msg]
+expression (PipeCommand c1 c2) = expression' (expression c1) c2
+expression (Redirection c path) = C.FunctionCallExpr writeFunc [C.ExprArg (expression c), C.StringArg path]
+expression _ = assert False undefined
+
+expression' :: C.Expression -> Command -> C.Expression
+expression' _ (EchoMessage msg) = C.FunctionCallExpr echoFunc [C.StringArg msg]
+expression' _ _ = assert False undefined
+
+echoEnableFunc, echoFunc, printFunc, quietFunc :: C.FuncRef
 echoEnableFunc = C.FuncRef internalNS "EchoEnable"
-echoDisableFunc = C.FuncRef internalNS "EchoEnable"
+echoFunc = C.FuncRef internalNS "Echo"
+printFunc = C.FuncRef internalNS "Print"
+quietFunc = C.FuncRef internalNS "Quiet"
+writeFunc = C.FuncRef internalNS "Redirect"
 
+userFunc :: String -> C.FuncRef
+userFunc = C.FuncRef userNS
+
+userNS :: C.ModuleRef
 userNS = C.ModuleRef ["Script"]
-internalNS = C.ModuleRef ["Batch","Internal"]
 
-toFuncCall :: C.Statement -> Command
-toFuncCall (C.FunctionCall (C.FuncRef internalNS "Echo") [C.StringArg msg]) = EchoMessage msg
-toFuncCall _ = assert False undefined
+internalNS :: C.ModuleRef
+internalNS = C.ModuleRef []
+
+-- toFuncCall :: C.Statement -> Command
+-- toFuncCall (C.FunctionCall (C.FuncRef internalNS "Echo") [C.StringArg msg]) = EchoMessage msg
+-- toFuncCall _ = assert False undefined
