@@ -96,8 +96,6 @@ nextTokens = lexeme (Parsec.choice (singleTokens ++ multiTokens)) <?> "command"
   where
     singleTokens = map toList [
         keywordAt
-      , redirectRight
-      , redirectLeft
       , keywordPipe
       , keyword KeywordNul
       , verCommand
@@ -106,6 +104,7 @@ nextTokens = lexeme (Parsec.choice (singleTokens ++ multiTokens)) <?> "command"
     multiTokens = [
         echoCommand
       , colons
+      , redirect
       , Parsec.try findCommand
       , forCommand
       , typeCommand
@@ -166,10 +165,13 @@ keywordStrings = [
 
 keywordAt = keywordNoEatWhitespace "@" At
 keywordPipe = keyword Pipe
-redirectLeft = keyword LessThan
-redirectRight = keyword GreaterThan
+
 amperstand = keyword Amperstand
 
+redirect :: Parsec String st Tokens
+redirect = keyword GreaterThan <:> ((:[]) <$> filename)
+
+colons :: Parsec String st Tokens
 colons = char ':' *> (comment <|> label)
   where
     comment = (\s -> [DoubleColon,s]) <$> (char ':' *> commentStringTok)

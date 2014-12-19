@@ -142,7 +142,7 @@ prop_echotonul =
   forAll messageString $ \msg ->
   assertLex
     ("ECHO" ++ msg ++ ">NUL")
-    [KeywordEcho, StringTok (strip msg), GreaterThan, KeywordNul]
+    [KeywordEcho, StringTok (strip msg), GreaterThan, StringTok "NUL"]
 
 prop_echopiped :: Property
 prop_echopiped =
@@ -174,7 +174,7 @@ prop_pipedredirect =
   forAll messageString $ \msg2 ->
   assertLex
     ("ECHO" ++ msg1 ++ "|ECHO" ++ msg2 ++ ">NUL")
-    [KeywordEcho, StringTok (strip msg1), Pipe, KeywordEcho, StringTok (strip msg2), GreaterThan, KeywordNul]
+    [KeywordEcho, StringTok (strip msg1), Pipe, KeywordEcho, StringTok (strip msg2), GreaterThan, StringTok "NUL"]
 
 prop_whitespace :: Property
 prop_whitespace =
