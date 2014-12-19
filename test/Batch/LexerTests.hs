@@ -28,6 +28,7 @@ tests =
   , testProperty "[whitespace]" prop_whitespace
   , testProperty "COMMAND & COMMAND" prop_amperstandCommands
   , testProperty "COMMAND | COMMAND > NUL" prop_pipedredirect
+  , testProperty "COPY [PATH] [PATH]" prop_copy
   , testProperty "ECHO [message] > NUL" prop_echotonul
   , testProperty "ECHO [message] | ECHO." prop_echopiped
   , testProperty "ECHO [message]" prop_echoMessage
@@ -39,8 +40,8 @@ tests =
   , testProperty "FOR /F \"options\" %%F IN (PATH) DO ECHO." prop_forFilesIn
   , testProperty "GOTO [Label]" prop_gotoLabel
   , testProperty "GOTO:EOF" prop_gotoEof
-  , testProperty "IF [COND] ([COMMAND])" prop_ifParenthesizedConsequent
   , testProperty "IF [COND] () ELSE ()" prop_ifElse
+  , testProperty "IF [COND] ([COMMAND])" prop_ifParenthesizedConsequent
   , testProperty "IF str==str [COMMAND] ELSE [COMMAND]" prop_ifElseStringEquals
   ]
 
@@ -106,6 +107,10 @@ prop_comment :: Property
 prop_comment =
   forAll commentString $ \msg ->
   assertLex ("::" ++ msg) [DoubleColon, StringTok msg]
+
+prop_copy :: Property.Result
+prop_copy =
+  assertLex "COPY PATH1 PATH2" [KeywordCopy,StringTok "PATH1",StringTok "PATH2"]
 
 prop_echoDot :: Property.Result
 prop_echoDot =

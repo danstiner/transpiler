@@ -40,6 +40,7 @@ data Token
     | IntegerTok Integer
     | KeywordAttrib
     | KeywordCmdExtVersion
+    | KeywordCopy
     | KeywordDefined
     | KeywordDo
     | KeywordEcho
@@ -102,17 +103,18 @@ nextTokens = lexeme (Parsec.choice (singleTokens ++ multiTokens)) <?> "command"
       , amperstand
       ]
     multiTokens = [
-        echoCommand
+        attribCommand
       , colons
-      , redirect
-      , Parsec.try findCommand
+      , copyCommand
+      , echoCommand
       , forCommand
-      , typeCommand
       , gotoCommand
-      , attribCommand
-      , renCommand
       , ifBlock
       , parens nextTokens
+      , Parsec.try findCommand
+      , redirect
+      , renCommand
+      , typeCommand
       ]
 
 keyword :: Token -> Parsec String st Token
@@ -139,6 +141,7 @@ keywordStrings = [
   , (GreaterThan, ">")
   , (KeywordAttrib, "ATTRIB")
   , (KeywordCmdExtVersion, "CMDEXTVERSION")
+  , (KeywordCopy, "COPY")
   , (KeywordDefined, "ATTRIB")
   , (KeywordDo, "DO")
   , (KeywordEcho, "ECHO")
@@ -235,6 +238,10 @@ findCommand =
 typeCommand :: Parsec String st [Token]
 typeCommand =
   fmap (\t -> [KeywordType,t]) (keyword KeywordType *> filepath)
+
+copyCommand :: Parsec String st [Token]
+copyCommand =
+  keyword KeywordCopy <:> filepath <:> filepath <:> return []
 
 attribCommand :: Parsec String st [Token]
 attribCommand =
