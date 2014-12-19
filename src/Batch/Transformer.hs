@@ -1,4 +1,8 @@
-module Batch.Transformer (from,to) where
+module Batch.Transformer
+    (
+      from
+    , to
+    ) where
 
 import           Batch.Definitions
 import qualified Common            as C
@@ -86,7 +90,3 @@ userNS = C.ModuleRef ["Script"]
 
 internalNS :: C.ModuleRef
 internalNS = C.ModuleRef []
-
--- toFuncCall :: C.Statement -> Command
--- toFuncCall (C.FunctionCall (C.FuncRef internalNS "Echo") [C.StringArg msg]) = EchoMessage msg
--- toFuncCall _ = assert False undefined

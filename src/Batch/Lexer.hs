@@ -1,10 +1,11 @@
-module Batch.Lexer (
-    lexer
-  , lexx
-  , Token (..)
-  , Tokens
-  , whiteSpaceCharacters
-) where
+module Batch.Lexer
+    (
+      lexer
+    , lexx
+    , Token (..)
+    , Tokens
+    , whiteSpaceCharacters
+    ) where
 
 import           Control.Applicative
 import           Control.Exception   (assert)
@@ -20,58 +21,58 @@ import           Text.Parsec.Char
 type Tokens = [Token]
 
 data Token
-  = Amperstand
-  | At
-  | CharacterTok Char
-  | CloseParen
-  | Colon
-  | CompareOpEqu
-  | CompareOpGeq
-  | CompareOpGtr
-  | CompareOpLeq
-  | CompareOpLss
-  | CompareOpNeq
-  | Dot
-  | DoubleColon
-  | DoubleEqual
-  | Equals
-  | GreaterThan
-  | IntegerTok Integer
-  | KeywordAttrib
-  | KeywordCmdExtVersion
-  | KeywordDefined
-  | KeywordDo
-  | KeywordEcho
-  | KeywordElse
-  | KeywordErrorLevel
-  | KeywordExist
-  | KeywordFind
-  | KeywordFor
-  | KeywordGoto
-  | KeywordIf
-  | KeywordIn
-  | KeywordNot
-  | KeywordNul
-  | KeywordOff
-  | KeywordOn
-  | KeywordRen
-  | KeywordTrue
-  | KeywordType
-  | KeywordVer
-  | LeftParen
-  | LessThan
-  | OpenParen
-  | Pipe
-  | RightParen
-  | Slash
-  | StringTok String
-  deriving (Eq,Show)
+    = Amperstand
+    | At
+    | CharacterTok Char
+    | CloseParen
+    | Colon
+    | CompareOpEqu
+    | CompareOpGeq
+    | CompareOpGtr
+    | CompareOpLeq
+    | CompareOpLss
+    | CompareOpNeq
+    | Dot
+    | DoubleColon
+    | DoubleEqual
+    | Equals
+    | GreaterThan
+    | IntegerTok Integer
+    | KeywordAttrib
+    | KeywordCmdExtVersion
+    | KeywordDefined
+    | KeywordDo
+    | KeywordEcho
+    | KeywordElse
+    | KeywordErrorLevel
+    | KeywordExist
+    | KeywordFind
+    | KeywordFor
+    | KeywordGoto
+    | KeywordIf
+    | KeywordIn
+    | KeywordNot
+    | KeywordNul
+    | KeywordOff
+    | KeywordOn
+    | KeywordRen
+    | KeywordTrue
+    | KeywordType
+    | KeywordVer
+    | LeftParen
+    | LessThan
+    | OpenParen
+    | Pipe
+    | RightParen
+    | Slash
+    | StringTok String
+    deriving (Eq,Show)
 
+controlSequences :: [String]
 controlSequences = ["&", "<", ">", "|", "::", "(", ")"]
 
+whiteSpaceCharacters :: String
 whiteSpaceCharacters = " \n\r\t\v\f"
-
-nothing = undefined
 
 toList :: Parsec String st Token -> Parsec String st Tokens
 toList = fmap (:[])
@@ -118,7 +119,7 @@ nextTokens = lexeme (Parsec.choice (singleTokens ++ multiTokens)) <?> "command"
 keyword :: Token -> Parsec String st Token
 keyword k = case lookup k keywordStrings of
   Just str -> keywordSymbol str k
-  Nothing -> trace ("Invalid Keyword: " ++ show k) $ assert False nothing
+  Nothing -> trace ("Invalid Keyword: " ++ show k) $ assert False undefined
 
 keywordSymbol name tok = symbol name *> return tok
 
@@ -217,7 +218,7 @@ gotoCommand = do
 
 echoCommand :: Parsec String st [Token]
 echoCommand =
-  fmap (\t -> [KeywordEcho,t]) (commandNoWhitespace "ECHO" *> (dotted <|> normal))
+    fmap (\t -> [KeywordEcho,t]) (commandNoWhitespace "ECHO" *> (dotted <|> normal))
   where
     dotted = dot
     normal = commandNameWhitespace *> (onOff <|> msg)
@@ -249,15 +250,15 @@ verCommand = keyword KeywordVer
 
 forCommand :: Parsec String st Tokens
 forCommand = do
-  keywordFor <- keyword KeywordFor
-  lexeme (Parsec.string "/F")
-  opts <- options
-  param <- parameter
-  keyword KeywordIn
-  fns <- filenameset
-  keyword KeywordDo
-  command <- nextTokens
-  return $ [keywordFor, Slash, CharacterTok 'F'] ++ opts ++ [param, KeywordIn] ++ fns ++ [KeywordDo] ++ command
+    keywordFor <- keyword KeywordFor
+    lexeme (Parsec.string "/F")
+    opts <- options
+    param <- parameter
+    keyword KeywordIn
+    fns <- filenameset
+    keyword KeywordDo
+    command <- nextTokens
+    return $ [keywordFor, Slash, CharacterTok 'F'] ++ opts ++ [param, KeywordIn] ++ fns ++ [KeywordDo] ++ command
   where
     options = fmap (\s -> [StringTok s]) escapedString
     filenameset = parens (fmap (:[]) filepath)

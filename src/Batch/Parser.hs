@@ -1,13 +1,14 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Batch.Parser (
-    parse
-  , command
-  , Script
-  , Command (..)
-  , Expression (..)
-) where
+module Batch.Parser
+    (
+      parse
+    , command
+    , Script
+    , Command (..)
+    , Expression (..)
+    ) where
 
 import           Batch.Definitions
 import           Batch.Lexer

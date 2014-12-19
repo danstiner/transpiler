@@ -1,4 +1,7 @@
-module CSharp.Printer (printProject) where
+module CSharp.Printer
+    (
+      printProject
+    ) where
 
 import CSharp.Definitions
 

@@ -1,4 +1,8 @@
-module CSharp.Transformer (from,to) where
+module CSharp.Transformer
+    (
+      from
+    , to
+    ) where
 
 import qualified Common             as C
 import           CSharp.Definitions
