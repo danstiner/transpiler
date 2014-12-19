@@ -5,16 +5,20 @@ module Batch.Definitions
   , LabelName
   , VarName
   , RedirectionSpecification
+  , Block
 ) where
 
 type RedirectionSpecification = FilePath
 type VarName = String
 type LabelName = String
+type Block = [Command]
 
 data Expression =
     ErrorLevelExpr Integer
+  | CmdExtVersionExpr Integer
   | EqualsExpr Expression Expression
   | Exist FilePath
+  | DefinedExpr String
   | FalseExpr
   | NotExpr Expression
   | StringExpr String
@@ -23,17 +27,20 @@ data Expression =
 
 data Command =
     EchoMessage String
-  | EchoEnabled Bool
   | Call LabelName
+  | Comment String
+  | EchoEnabled Bool
+  | ExternalCommand String String
   | Find String [FilePath]
   | Goto LabelName
   | GotoEof
-  | If Expression Command Command
+  | If Expression Block Block
   | Label LabelName
   | Noop
   | PipeCommand Command Command
-  | Redirection Command RedirectionSpecification
+  | Program [Command]
   | Quieted Command
+  | Redirection Command RedirectionSpecification
   | Rem String
   | Rename FilePath FilePath
   | RmDir { rmDirRecurse :: Bool, rmDirQuiet :: Bool, rmDirPath :: FilePath }
@@ -41,6 +48,4 @@ data Command =
   | Type [FilePath]
   | Ver
   | Verify Bool
-  | ExternalCommand String String
-  | Program [Command]
   deriving (Eq, Show)

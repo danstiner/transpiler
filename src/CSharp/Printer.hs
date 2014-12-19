@@ -6,6 +6,7 @@ import Control.Exception       (assert)
 import Data.ByteString.Builder
 import Data.List
 import Data.String.Utils
+import Debug.Trace             (trace)
 
 printProject :: Project -> IO ()
 printProject (Project files) = putStrLn "Project" >> mapM_ printFile files
@@ -17,28 +18,40 @@ printDefinition :: Definition -> IO ()
 printDefinition (Class str members) = putStr "class " >> putStr str >> putStrLn " {" >> mapM_ printMember members >> putStrLn "}"
 
 printMember :: ClassMember -> IO ()
-printMember (StaticFunction name body) = putStr "static function " >> putStr name >> putStrLn "() {" >> mapM_ printStatement body >> putStrLn "}"
+printMember (StaticFunction name body) = putStr "static function " >> putStr name >> putStrLn "() {" >> mapM_ (putStr . statement) body >> putStrLn "}"
 printMember _ = assert False undefined
 
-printStatement :: Statement -> IO ()
-printStatement (FunctionCall funcRef args) = putStrLn $ printFuncRef funcRef ++ "(" ++ printArguments args ++ ");"
-printStatement _ = assert False undefined
+statement :: Statement -> String
+statement (FunctionCall fr args) = funcRef fr ++ "(" ++ arguments args ++ ");" ++ newline
+statement (Comment msg) = "//" ++ assertSingleLine msg ++ newline
+statement (If expr con alt) = "if (" ++ expression expr ++ ") {" ++ newline ++ concatMap statement con ++ "} else {" ++ concatMap statement alt ++ "}" ++ newline
+statement (Noop) = ""
+statement s = trace (show s) $ assert False undefined
 
-printFuncRef :: FuncRef -> String
-printFuncRef (FuncRef (ClassRef path) name) = intercalate "." (path ++ [name])
+funcRef :: FuncRef -> String
+funcRef (FuncRef (ClassRef path) name) = intercalate "." (path ++ [name])
 
-printArguments :: [Argument] -> String
-printArguments = intercalate ", " . map printArgument
+arguments :: [Argument] -> String
+arguments = intercalate ", " . map argument
 
-printArgument :: Argument -> String
-printArgument (StringArg str) = "\"" ++ escapeString str ++ "\""
-printArgument (BoolArg b) = if b then "true" else "false"
-printArgument (ExprArg e) = printExpression e
-printArgument _ = assert False undefined
+argument :: Argument -> String
+argument (StringArg str) = "\"" ++ escapeString str ++ "\""
+argument (BoolArg b) = if b then "true" else "false"
+argument (ExprArg e) = expression e
+argument (IntegerArg n) = show n
+argument _ = assert False undefined
 
-printExpression :: Expression -> String
-printExpression (FunctionCallExpr funcRef args) = printFuncRef funcRef ++ "(" ++ printArguments args ++ ")"
-printExpression _ = assert False undefined
+expression :: Expression -> String
+expression (FunctionCallExpr fr args) = funcRef fr ++ "(" ++ arguments args ++ ")"
+expression (EqualsExpr l r) = expression l ++ " == " ++ expression r
+expression (StringExpr str) = "\"" ++ assertSingleLine (escapeString str) ++ "\""
+expression e = trace (show e) $ assert False undefined
 
 escapeString :: String -> String
 escapeString = replace "\"" "\\\""
+
+assertSingleLine :: String -> String
+assertSingleLine = id -- TODO
+
+newline :: String
+newline = "\n"
