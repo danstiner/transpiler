@@ -107,11 +107,11 @@ nextTokens = lexeme (Parsec.choice (singleTokens ++ multiTokens)) <?> "command"
       , colons
       , copyCommand
       , echoCommand
-      , forCommand
       , gotoCommand
       , ifBlock
       , parens nextTokens
       , Parsec.try findCommand
+      , forCommand
       , redirect
       , renCommand
       , typeCommand
@@ -245,7 +245,7 @@ attribCommand = keyword KeywordAttrib <:> msg <:> return []
     msg = fmap (StringTok . strip) unescapedString
 
 renCommand :: Parsec String st [Token]
-renCommand = keyword KeywordRen <:> filepath <:> return []
+renCommand = keyword KeywordRen <:> filepath <:> filepath <:> return []
 
 verCommand :: Parsec String st Token
 verCommand = keyword KeywordVer
