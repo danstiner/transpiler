@@ -217,10 +217,9 @@ compareOpKeywords = [
   ]
 
 gotoCommand :: Parsec String st [Token]
-gotoCommand = do
-  gotoTok <- keyword KeywordGoto
-  label <- unescapedString
-  return [gotoTok, StringTok (strip label)]
+gotoCommand = keyword KeywordGoto <:> label <:> return []
+  where
+    label = fmap (StringTok . strip) unescapedString
 
 echoCommand :: Parsec String st [Token]
 echoCommand =
@@ -232,28 +231,21 @@ echoCommand =
     msg = fmap (StringTok . strip) unescapedString
 
 findCommand :: Parsec String st [Token]
-findCommand =
-  fmap (\t -> [KeywordFind,t]) (keyword KeywordFind *> filepath)
+findCommand = keyword KeywordFind <:> filepath <:> return []
 
 typeCommand :: Parsec String st [Token]
-typeCommand =
-  fmap (\t -> [KeywordType,t]) (keyword KeywordType *> filepath)
+typeCommand = keyword KeywordType <:> filepath <:> return []
 
 copyCommand :: Parsec String st [Token]
-copyCommand =
-  keyword KeywordCopy <:> filepath <:> filepath <:> return []
+copyCommand = keyword KeywordCopy <:> filepath <:> filepath <:> return []
 
 attribCommand :: Parsec String st [Token]
-attribCommand =
-  fmap (\t -> [KeywordAttrib,t]) (keyword KeywordAttrib *> msg) where
+attribCommand = keyword KeywordAttrib <:> msg <:> return []
+  where
     msg = fmap (StringTok . strip) unescapedString
 
 renCommand :: Parsec String st [Token]
-renCommand = do
-  keyword <- keyword KeywordRen
-  a <- filepath
-  b <- filepath
-  return [keyword, a, b]
+renCommand = keyword KeywordRen <:> filepath <:> return []
 
 verCommand :: Parsec String st Token
 verCommand = keyword KeywordVer
@@ -292,7 +284,7 @@ notExpr = do
   expr <- expression
   return (keyword : expr)
 
-quoted = fmap ((: []) . StringTok) escapedString
+quoted = (StringTok <$> escapedString) <:> return []
 
 equals = Parsec.try $ do
   left <- lexeme $ Parsec.choice terminalExpressions
@@ -306,10 +298,9 @@ errorLevel = lexeme . Parsec.try $ do
   return [KeywordErrorLevel, IntegerTok level]
 
 exist :: Parsec String st Tokens
-exist =
-  fmap (\t -> [KeywordExist,t]) (keyword KeywordExist *> msg)
+exist = keyword KeywordExist <:> msg <:> return []
   where
-    msg = fmap (StringTok . strip) unescapedString
+    msg = StringTok . strip <$> unescapedString
 
 parens :: Parsec String st Tokens -> Parsec String st Tokens
 parens run = do
