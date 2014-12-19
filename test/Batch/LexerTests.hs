@@ -17,6 +17,9 @@ tests :: [Test]
 tests =
   [
     testProperty "[]" prop_empty
+  , testProperty "()" prop_parens
+  , testProperty "(COMMAND&COMMAND)" prop_parenthesizedCommands
+  , testProperty "(COMMAND)" prop_parenthesizedCommand
   , testProperty "::[Comment]" prop_comment
   , testProperty ":[Label]" prop_label
   , testProperty "@" prop_at
@@ -35,9 +38,7 @@ tests =
   , testProperty "ECHO." prop_echoDot
   , testProperty "GOTO [Label]" prop_gotoLabel
   , testProperty "GOTO:EOF" prop_gotoEof
-  , testProperty "()" prop_parens
-  , testProperty "(COMMAND)" prop_parenthesizedCommand
-  , testProperty "(COMMAND&COMMAND)" prop_parenthesizedCommands
+  , testProperty "IF [COND] ([COMMAND])" prop_ifParenthesizedConsequent
   ]
 
 prop_amperstandCommands :: Property
@@ -60,6 +61,12 @@ prop_parenthesizedCommands =
   forAll commentString $ \msg1 ->
   forAll commentString $ \msg2 ->
   assertLex ("(ECHO" ++ msg1 ++ "&ECHO" ++ msg2 ++ ")") [OpenParen, KeywordEcho, StringTok (strip msg1), Amperstand, KeywordEcho, StringTok (strip msg2), CloseParen]
+
+prop_ifParenthesizedConsequent :: Property.Result
+prop_ifParenthesizedConsequent =
+  assertLex
+    "IF EXIST PATH (ECHO EOF)"
+    [KeywordIf,KeywordExist,StringTok "PATH",OpenParen,KeywordEcho,StringTok "EOF",CloseParen]
 
 prop_at :: Property.Result
 prop_at = assertLex "@" [At]
