@@ -267,9 +267,8 @@ forCommand = do
 parens :: Parsec String st Tokens -> Parsec String st Tokens
 parens run = do
   keyword OpenParen
-  c <- run
-  keyword CloseParen
-  return $ [OpenParen] ++ c ++ [CloseParen]
+  c <- Parsec.manyTill run (keyword CloseParen)
+  return $ [OpenParen] ++ concat c ++ [CloseParen]
 
 expression :: Parsec String st Tokens
 expression = lexeme $ Parsec.choice (recursiveExpressions ++ terminalExpressions)

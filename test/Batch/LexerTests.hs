@@ -23,8 +23,9 @@ tests =
   , testProperty "@ECHO OFF" prop_atEchoOff
   , testProperty "[command][whitespace]" prop_commandThenWhitespace
   , testProperty "[whitespace]" prop_whitespace
+  , testProperty "COMMAND & COMMAND" prop_amperstandCommands
+  , testProperty "COMMAND | COMMAND > NUL" prop_pipedredirect
   , testProperty "ECHO [message] > NUL" prop_echotonul
-  , testProperty "ECHO [message] | ECHO [message] > NUL" prop_pipedredirect
   , testProperty "ECHO [message] | ECHO." prop_echopiped
   , testProperty "ECHO [message]" prop_echoMessage
   , testProperty "ECHO [message]::[Comment]" prop_echoMessageComment
@@ -34,7 +35,31 @@ tests =
   , testProperty "ECHO." prop_echoDot
   , testProperty "GOTO [Label]" prop_gotoLabel
   , testProperty "GOTO:EOF" prop_gotoEof
+  , testProperty "()" prop_parens
+  , testProperty "(COMMAND)" prop_parenthesizedCommand
+  , testProperty "(COMMAND&COMMAND)" prop_parenthesizedCommands
   ]
+
+prop_amperstandCommands :: Property
+prop_amperstandCommands =
+  forAll commentString $ \msg1 ->
+  forAll commentString $ \msg2 ->
+  assertLex ("ECHO" ++ msg1 ++ "&ECHO" ++ msg2) [KeywordEcho, StringTok (strip msg1), Amperstand, KeywordEcho, StringTok (strip msg2)]
+
+prop_parens :: Property.Result
+prop_parens =
+  assertLex "()" [OpenParen, CloseParen]
+
+prop_parenthesizedCommand :: Property
+prop_parenthesizedCommand =
+  forAll commentString $ \msg ->
+  assertLex ("(ECHO" ++ msg ++ ")") [OpenParen, KeywordEcho, StringTok (strip msg), CloseParen]
+
+prop_parenthesizedCommands :: Property
+prop_parenthesizedCommands =
+  forAll commentString $ \msg1 ->
+  forAll commentString $ \msg2 ->
+  assertLex ("(ECHO" ++ msg1 ++ "&ECHO" ++ msg2 ++ ")") [OpenParen, KeywordEcho, StringTok (strip msg1), Amperstand, KeywordEcho, StringTok (strip msg2), CloseParen]
 
 prop_at :: Property.Result
 prop_at = assertLex "@" [At]
