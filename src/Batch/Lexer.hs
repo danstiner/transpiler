@@ -260,7 +260,7 @@ forCommand = do
     command <- nextTokens
     return $ [keywordFor, Slash, CharacterTok 'F'] ++ opts ++ [param, KeywordIn] ++ fns ++ [KeywordDo] ++ command
   where
-    options = fmap (\s -> [StringTok s]) escapedString
+    options = lexeme $ fmap (\s -> [StringTok s]) escapedString
     filenameset = parens (fmap (:[]) filepath)
     parameter = lexeme . fmap CharacterTok $ Parsec.string "%%" *> Parsec.letter
 
