@@ -41,6 +41,7 @@ tests =
   , testProperty "GOTO:EOF" prop_gotoEof
   , testProperty "IF [COND] ([COMMAND])" prop_ifParenthesizedConsequent
   , testProperty "IF [COND] () ELSE ()" prop_ifElse
+  , testProperty "IF str==str [COMMAND] ELSE [COMMAND]" prop_ifElseStringEquals
   ]
 
 prop_amperstandCommands :: Property
@@ -81,6 +82,12 @@ prop_ifElse =
   assertLex
     "IF EXIST PATH (ECHO.) ELSE (ECHO.)"
     [KeywordIf,KeywordExist,StringTok "PATH",OpenParen,KeywordEcho,Dot,CloseParen,KeywordElse,OpenParen,KeywordEcho,Dot,CloseParen]
+
+prop_ifElseStringEquals :: Property.Result
+prop_ifElseStringEquals =
+  assertLex
+    "IF \"A\"==\"B\" (ECHO A) ELSE (ECHO B)"
+    [KeywordIf,StringTok "A",DoubleEqual,StringTok "B",OpenParen,KeywordEcho,StringTok "A",CloseParen,KeywordElse,OpenParen,KeywordEcho,StringTok "B",CloseParen]
 
 prop_at :: Property.Result
 prop_at = assertLex "@" [At]

@@ -183,14 +183,15 @@ ifBlock = keyword KeywordIf <:> (Parsec.try fileIf <|> Parsec.try stringIf <|> P
   where
     fileIf = notable (keyword KeywordExist <:> filename <:> body)
     stringIf = insensitiveSwitch (stringEquals <|> stringCompare)
-    stringEquals = notable $ item <++> keywords [DoubleEqual] <++> item <++> command
+    stringEquals = notable $ item <++> keywords [DoubleEqual] <++> item <++> body
     stringCompare = item <++> toList compareOp <++> item <++> body
     errorCheckIf = defined <|> errorLevel <|> cmdExtVersion
     defined = notable $ keyword KeywordDefined <:> variable <:> command
     errorLevel = notable $ keyword KeywordErrorLevel <:> naturalTok <:> command
     cmdExtVersion = keyword KeywordCmdExtVersion <:> naturalTok <:> command
-    body = Parsec.try elseBlock <|> command
-    elseBlock = parenthesizedBlock <++> keywords [KeywordElse] <++> parenthesizedBlock
+    body = parenthesizedBody <|> command
+    parenthesizedBody =
+      parenthesizedBlock <++> ((Parsec.try (keywords [KeywordElse]) <++> parenthesizedBlock) <|> return [])
     insensitiveSwitch p = Parsec.try (slashI <++> p) <|> p
     slashI = lexeme $ Parsec.string "/I" *> return [Slash, CharacterTok 'I']
 
