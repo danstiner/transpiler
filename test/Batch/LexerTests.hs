@@ -40,6 +40,7 @@ tests =
   , testProperty "GOTO [Label]" prop_gotoLabel
   , testProperty "GOTO:EOF" prop_gotoEof
   , testProperty "IF [COND] ([COMMAND])" prop_ifParenthesizedConsequent
+  , testProperty "IF [COND] () ELSE ()" prop_ifElse
   ]
 
 prop_amperstandCommands :: Property
@@ -74,6 +75,12 @@ prop_forFilesIn =
   assertLex
     "FOR /F \"options\" %%F IN (PATH) DO ECHO."
     [KeywordFor,Slash,CharacterTok 'F',StringTok "options",CharacterTok 'F',KeywordIn,OpenParen,StringTok "PATH",CloseParen,KeywordDo,KeywordEcho,Dot]
+
+prop_ifElse :: Property.Result
+prop_ifElse =
+  assertLex
+    "IF EXIST PATH (ECHO.) ELSE (ECHO.)"
+    [KeywordIf,KeywordExist,StringTok "PATH",OpenParen,KeywordEcho,Dot,CloseParen,KeywordElse,OpenParen,KeywordEcho,Dot,CloseParen]
 
 prop_at :: Property.Result
 prop_at = assertLex "@" [At]

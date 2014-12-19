@@ -264,12 +264,6 @@ forCommand = do
     filenameset = parens (fmap (:[]) filepath)
     parameter = lexeme . fmap CharacterTok $ Parsec.string "%%" *> Parsec.letter
 
-parens :: Parsec String st Tokens -> Parsec String st Tokens
-parens run = do
-  keyword OpenParen
-  c <- Parsec.manyTill run (keyword CloseParen)
-  return $ [OpenParen] ++ concat c ++ [CloseParen]
-
 expression :: Parsec String st Tokens
 expression = lexeme $ Parsec.choice (recursiveExpressions ++ terminalExpressions)
 
@@ -307,11 +301,13 @@ exist =
   where
     msg = fmap (StringTok . strip) unescapedString
 
-parenthesizedBlock = do
-  open <- keyword OpenParen
-  commands <- Parsec.manyTill nextTokens (keyword CloseParen)
-  close <- keyword CloseParen
-  return $ [open] ++ concat commands ++ [close]
+parens :: Parsec String st Tokens -> Parsec String st Tokens
+parens run = do
+  keyword OpenParen
+  c <- Parsec.manyTill run (keyword CloseParen)
+  return $ [OpenParen] ++ concat c ++ [CloseParen]
+
+parenthesizedBlock = parens nextTokens
 
 block :: Parsec String st Tokens
 block = nextTokens
